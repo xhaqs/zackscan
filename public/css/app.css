@@ -285,3 +285,6 @@ dialog.map-sheet .tier-toggle button[aria-pressed="true"] { background: #0e7490;
 .wx-anom { font-size: 0.9rem; }
 .wx-normal { font-size: 0.78rem; color: var(--muted); }
 .wx-now { margin: 4px 0; font-size: 0.9rem; }
+
+.foot-links { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
+section.ops .copy-text { color: #9ca3af; font-size: 0.85rem; }

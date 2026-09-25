@@ -15,6 +15,7 @@ import { ageLabel } from "./offline-logic.js";
 import { loadSitrep, saveSitrep } from "./offline-store.js";
 import { api } from "./api.js";
 import { openDispersion, openHeatGrid } from "./map-sheet.js";
+import { shareStoryCard } from "./story-card.js";
 
 const LEVEL_LABEL = { low: "Low", guarded: "Guarded", elevated: "Elevated", high: "High", severe: "Severe", unknown: "Unknown" };
 const SHORT = { seismic: "SEISMIC", wildfire: "FIRE & SMOKE", heat: "HEAT", glof: "GLOF" };
@@ -153,7 +154,7 @@ export function createAnomalyCard({ region, key, pillar, source, onNeedFull }) {
       if (saved?.result?.assessment?.plain) renderSitrep(saved.result.assessment, `AI · ${saved.result.model} · ${ageLabel(Date.parse(saved.result.generatedAt))}`);
     });
 
-  async function share() {
+  async function copyText() {
     const tier = preferredTier();
     const t = current;
     const lines =
@@ -163,23 +164,33 @@ export function createAnomalyCard({ region, key, pillar, source, onNeedFull }) {
     const title = `${region.name}: ${PILLAR_TITLES[key]}${pillar?.score != null ? ` (${LEVEL_LABEL[level]}, ${pillar.score}/100)` : ""}`;
     const text = `${title}\n${lines.join("\n")}\n— Zackscan SitRep (${TIER_LABELS[tier]}, ${currentSource})`;
     const url = `${location.origin}/?focus=${encodeURIComponent(region.id)}#anom-h`;
-    // The phone's share sheet first; if it's missing or fails (not cancelled), copy instead.
-    if (navigator.share) {
-      try {
-        return await navigator.share({ title, text, url });
-      } catch (e) {
-        if (e?.name === "AbortError") return; // the user closed the sheet
-      }
-    }
     try {
       await navigator.clipboard.writeText(`${text}\n${url}`);
-      shareBtn.textContent = "COPIED ✓";
-      setTimeout(() => (shareBtn.textContent = "SHARE SITREP"), 2000);
+      copyLink.textContent = "Copied ✓";
+      setTimeout(() => (copyLink.textContent = "Copy text instead"), 2000);
     } catch {
-      err.textContent = "Couldn't share. Long-press the SitRep text to copy it.";
+      err.textContent = "Couldn't copy. Long-press the SitRep text to copy it.";
     }
   }
-  const shareBtn = h("button", { type: "button", class: "action", onclick: share }, "SHARE SITREP");
+  // One tap: a Visual Story Card image of exactly what this card shows
+  // (the SitRep in the tier currently selected), shared or downloaded.
+  async function shareImage() {
+    shareBtn.disabled = true;
+    shareBtn.textContent = "PREPARING…";
+    err.textContent = "";
+    try {
+      const how = await shareStoryCard({ region, key, pillar, tiered: current, tier: preferredTier(), sourceLabel: currentSource, live: !!source?.live });
+      shareBtn.textContent = how === "downloaded" ? "IMAGE SAVED ✓" : how === "shared" ? "SHARED ✓" : "SHARE SITREP";
+    } catch (e) {
+      err.textContent = "Couldn't make the image: " + (e?.message || e);
+      shareBtn.textContent = "SHARE SITREP";
+    } finally {
+      shareBtn.disabled = false;
+      setTimeout(() => (shareBtn.textContent = "SHARE SITREP"), 2500);
+    }
+  }
+  const shareBtn = h("button", { type: "button", class: "action", onclick: shareImage }, "SHARE SITREP");
+  const copyLink = h("button", { type: "button", class: "link copy-text", onclick: copyText }, "Copy text instead");
   // Gridded model views (loaded only when opened): smoke/dust spread for fire
   // cards, the spatial heat anomaly for heat cards.
   const mapBtn =
@@ -220,7 +231,7 @@ export function createAnomalyCard({ region, key, pillar, source, onNeedFull }) {
       h("div", { class: "sitrep-foot" }, src, aiBtn),
       err,
     ),
-    h("footer", { class: "card-foot" }, mapBtn, shareBtn, firmsLink),
+    h("footer", { class: "card-foot" }, mapBtn, shareBtn, h("div", { class: "foot-links" }, copyLink, firmsLink)),
   );
 
   const onPref = (e) => show(e.detail);

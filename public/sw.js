@@ -42,6 +42,8 @@ const SHELL_FILES = [
   "/js/map-sheet.js",
   "/js/operator.js",
   "/js/weather-widget.js",
+  "/js/story-model.js",
+  "/js/story-card.js",
   "/favicon.svg",
   "/manifest.webmanifest",
   "/icons/icon-192.png",

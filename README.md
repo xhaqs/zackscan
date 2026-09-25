@@ -172,3 +172,11 @@ The highest-scoring region × hazard readings as dark "ops" cards (`public/js/an
 
 - **Profile bar** under the header (`public/js/operator.js`): the active mission, plus the name, organization and role from **Settings → Your profile**, stored on this device only. Nothing about the operator is hardcoded. The role sets defaults (analysts get Researcher assessments), never access: anything in the browser can be edited by whoever holds it, so real permissions would need server-side accounts. The chips show what the device can actually do: own AI key, background alerts on or blocked, works offline, data saver.
 - **Today's weather** (`public/js/weather-widget.js`): the day's high, mean humidity and max wind for the home region (or any watchlist region), each with its anomaly, e.g. "36.3 °C, −0.8σ below seasonal average (cooler), normal 38 ± 2 °C", plus current conditions. It adds no API calls: `src/risk/weather.js` works from the heat pillar's own Open-Meteo forecast and 10-year archive. Today's daily values are compared with the same daily measures in the same ±7-day window over 10 years (the baseline is cached weekly and the result refreshed with the region, about every 20 min).
+
+## Visual Story Cards
+
+**SHARE SITREP** on any anomaly card makes a 1080×1350 JPEG (about 100–150 KB) and shares it (`public/js/story-card.js`, content in `story-model.js`).
+- **Contents:** hazard, level, region, score and time; the anomaly visual; three key figures; the SitRep in the tier (plain or researcher) currently selected on that card; data sources; a link back to the region.
+- **Which visual:** the gridded map (heat anomaly or CAMS PM2.5 forecast) if it was opened in the last 12–24 h, otherwise the card's own chart.
+- **How it's made:** drawn directly on a canvas from the data, not screenshotted, so it's sharp and works offline. It takes about 30–120 ms.
+- **Sharing:** the Web Share API with the image file and a short caption. Where files can't be shared (for example desktop Firefox), or sharing fails, the image downloads instead. **Copy text instead** keeps plain-text sharing.
