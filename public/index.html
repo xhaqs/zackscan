@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zackscan</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Zackscan</h1>
+    <label>Mission
+      <select id="profile" aria-label="Mission profile"></select>
+    </label>
+    <button id="open-settings" type="button">⚙ Settings</button>
+  </header>
+
+  <main>
+    <section aria-labelledby="events-h">
+      <h2 id="events-h">Live events</h2>
+      <p class="meta"><span id="status"></span> · <span id="poll"></span></p>
+      <p class="warn" id="feed-warn"></p>
+      <ul id="events"></ul>
+    </section>
+
+    <section aria-labelledby="ai-h">
+      <h2 id="ai-h">AI assessment</h2>
+      <button id="analyze" type="button">Assess current events</button>
+      <div id="assessment" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <dialog id="settings">
+    <form id="key-form">
+      <h2>Your AI key</h2>
+      <p id="key-state"></p>
+      <label>Provider
+        <select id="key-provider">
+          <option value="gemini">Gemini</option>
+          <option value="anthropic">Anthropic</option>
+        </select>
+      </label>
+      <label>API key
+        <input id="key-input" type="password" autocomplete="off" spellcheck="false" required>
+      </label>
+      <label class="check"><input id="key-remember" type="checkbox"> Remember on this device</label>
+      <p class="hint">Your key stays in this browser. Zackscan's server uses it for your request and never stores it.</p>
+      <p class="err" id="key-error"></p>
+      <div class="row">
+        <button type="submit">Save key</button>
+        <button type="button" id="key-clear" hidden>Remove key</button>
+        <button type="submit" formmethod="dialog" formnovalidate>Close</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

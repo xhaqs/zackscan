@@ -1,0 +1,20 @@
+name = "zackscan"
+main = "src/worker.js"
+compatibility_date = "2026-09-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+[vars]
+# Free platform-tier AI calls per visitor IP per day.
+PLATFORM_DAILY_LIMIT = "10"
+
+# Secrets (set with `wrangler secret put`, never committed):
+#   PLATFORM_GEMINI_KEY  platform-tier Gemini key; without it only BYOK works
+#
+# Before going public, create the KV namespace for the rate limiter and uncomment:
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT"
+# id = "<from: wrangler kv namespace create RATE_LIMIT>"
