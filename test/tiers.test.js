@@ -184,3 +184,57 @@ test("a failed shared-tier generation doesn't use up the visitor's allowance", a
     globalThis.fetch = realFetch;
   }
 });
+
+// ---------------------------------------------------------------- anomaly-card SitReps
+
+import { makeStore } from "../src/risk/store.js";
+import { cardDigest, buildCardPrompt } from "../src/ai/prompts.js";
+
+async function seedHeat(peak = 29.7) {
+  const now = new Date().toISOString();
+  await makeStore({}).put("risk:v1:dubai", {
+    id: "dubai", name: "Dubai, UAE", updatedAt: now, overall: { score: 62, level: "high" },
+    pillars: { heat: { score: 62, level: "high", status: "live", asOf: now, components: {
+      severity: { score: 62, peakWetBulbC: peak, at: "2026-09-25T14:00", tempC: 37, relativeHumidityPct: 55, series: [["2026-09-25T13:00", 29.1], ["2026-09-25T14:00", peak]] },
+      anomaly: { score: 33, zScore: 1.3, dailyWetBulbC: 27.8, baselineMeanC: 24.2, baselineStdC: 2.7, baselineDays: 150 },
+    } } },
+  });
+}
+
+test("card digest: values only, timestamps out, the two heat measures kept apart", () => {
+  const p = { score: 62, level: "high", status: "live", asOf: "x", components: { severity: { peakWetBulbC: 29.7, at: "2026-09-25T14:00", series: [["a", 28.5], ["b", 31.2], ["c", 27]] }, anomaly: { zScore: 1.3, dailyWetBulbC: 27.8, baselineMeanC: 24.2 } } };
+  const d = cardDigest("heat", p);
+  assert.equal(d.severity_hourlyPeakWetBulbNext48hC, 29.7);
+  assert.equal(d.anomaly_dailyWetBulbC, 27.8);
+  assert.equal(d.hoursAbove28C, 2);
+  assert.equal(d.hoursAbove31C, 1);
+  assert.ok(!JSON.stringify(d).includes('"asOf"'));
+  const { system, prompt } = buildCardPrompt({ regionName: "Dubai, UAE", key: "heat", digest: d });
+  assert.match(system, /ONE anomaly on Zackscan: the Extreme Heat reading for Dubai, UAE/);
+  assert.match(system, /BOTH registers/);
+  assert.match(prompt, /hourlyPeakWetBulbNext48hC/);
+});
+
+test("card SitRep: one call for both tiers, unchanged on the same data, clear errors otherwise", async () => {
+  await seedHeat();
+  const up = stubUpstream();
+  try {
+    const byok = { "X-Custom-AI-Key": GEMINI_KEY, "X-Custom-AI-Provider": "gemini" };
+    const r = await (await post({ region: "dubai", pillar: "heat" }, byok)).json();
+    assert.equal(r.region, "dubai");
+    assert.equal(r.pillar, "heat");
+    assert.ok(r.assessment.plain && r.assessment.researcher);
+    assert.equal(up.calls(), 1);
+    const again = await (await post({ region: "dubai", pillar: "heat", knownFingerprint: r.fingerprint }, byok)).json();
+    assert.equal(again.unchanged, true);
+    assert.equal(up.calls(), 1, "no second call");
+    await seedHeat(31.5); // the reading changed
+    const changed = await (await post({ region: "dubai", pillar: "heat", knownFingerprint: r.fingerprint }, byok)).json();
+    assert.ok(changed.assessment, "regenerated when the telemetry changed");
+    assert.equal((await post({ region: "tokyo", pillar: "heat" }, byok)).status, 409, "no data yet");
+    assert.equal((await post({ region: "dubai", pillar: "glof" }, byok)).status, 400, "GLOF is a stub: no AI SitRep");
+    assert.equal((await post({ region: "atlantis", pillar: "heat" }, byok)).status, 400);
+  } finally {
+    up.restore();
+  }
+});

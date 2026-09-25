@@ -61,6 +61,8 @@ export function scoreSeismic({ events, baseline, minMag, now = Date.now() }) {
       baselineEventsPerYear: r1(ratePerDay * 365.25),
       baselineYears: baseline.years,
       largest: events.length ? pick(events.reduce((a, b) => (b.mag > a.mag ? b : a)), ["mag", "place", "time", "depthKm"]) : null,
+      // The week's events for charts, biggest first when capped: [time ms, magnitude, depth km, place].
+      events: [...events].sort((a, b) => b.mag - a.mag).slice(0, 100).map((e) => [e.time, e.mag, e.depthKm, e.place]),
     },
   };
 }
@@ -85,7 +87,14 @@ export function scoreWildfire({ detections, weather, pm25 }) {
     const frp = confident.reduce((s, d) => s + (d.frpMw || 0), 0);
     // Log scales: 10 detections -> 26, 100 -> 50, 1000 -> 75; FRP 1 GW -> 40, 10 GW -> 60.
     const score = Math.round(clamp(Math.max(25 * Math.log10(1 + confident.length), 20 * Math.log10(1 + frp / 10))));
-    activity = { score, detections: confident.length, lowConfidenceDropped: detections.length - confident.length, totalFrpMw: Math.round(frp) };
+    activity = {
+      score,
+      detections: confident.length,
+      lowConfidenceDropped: detections.length - confident.length,
+      totalFrpMw: Math.round(frp),
+      // Detections for maps, most intense first when capped: [lat, lon, FRP MW].
+      points: [...confident].sort((a, b) => (b.frpMw || 0) - (a.frpMw || 0)).slice(0, 200).map((d) => [d.lat, d.lon, d.frpMw || 0]),
+    };
   } else notes.push("Active-fire detection is off: add a NASA FIRMS MAP_KEY.");
 
   let fireWeather = null;
@@ -159,7 +168,15 @@ export function scoreHeat({ hourlyAhead, daily, baseline, windowDays = 7 }) {
     return !best || tw > best.tw ? { tw, time: h.time, tempC: h.tempC, rh: h.rh } : best;
   }, null);
   const severity = peak
-    ? { score: Math.round(piecewise(peak.tw, WETBULB_SEVERITY)), peakWetBulbC: r1(peak.tw), at: peak.time, tempC: peak.tempC, relativeHumidityPct: peak.rh }
+    ? {
+        score: Math.round(piecewise(peak.tw, WETBULB_SEVERITY)),
+        peakWetBulbC: r1(peak.tw),
+        at: peak.time,
+        tempC: peak.tempC,
+        relativeHumidityPct: peak.rh,
+        // Hourly wet-bulb for the next 48 h, [local time, °C], for charts.
+        series: hourly.slice(0, 48).map((h) => [h.time, r1(wetBulbStull(h.tempC, h.rh))]),
+      }
     : null;
 
   // Anomaly: compare like with like. Today's and tomorrow's Stull(Tmax, RHmin)

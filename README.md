@@ -150,3 +150,18 @@ The prompt carries the instructions for both registers, each aimed at its own fi
 - iOS has no vibration.
 
 **Keys:** `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` are GitHub secrets that CI sets on the Worker. For local dev they go in `.dev.vars` (gitignored).
+
+## Anomaly cards (Top anomalies)
+
+The highest-scoring region × hazard readings as dark "ops" cards (`public/js/anomaly-card.js`, `anomaly-deck.js`). The frontend stays plain JS/CSS with no build step, so offline mode and alarms keep working.
+- **Header:** hazard and level badge (always with text, never colour alone), live/saved/stale telemetry with age, 0–100 score.
+- **Charts** (`public/js/charts.js`, plain SVG, real data only):
+  - heat: the next 48 h of hourly wet-bulb against the 28/31/35 °C thresholds, plus a ±σ gauge on a cyan→gray→amber diverging scale;
+  - quakes: magnitude over 7 days;
+  - fires: satellite detections on a map, coloured by fire radiative power;
+  - GLOF: reference lakes only, labelled Preliminary / Non-Real-Time.
+
+  Each chart has a hover and keyboard tooltip plus a data table. The palette was validated for monotone lightness, one hue per arm, and contrast on the dark card surface.
+- **SitRep** in both registers with an instant toggle. By default it's written from the data (`public/js/briefing.js`: offline, free; the plain version is tested to be jargon-free). **✨ AI SitRep** sends `POST /api/analyze {region, pillar}` to generate both registers for that one reading in a single call, with the same fingerprint caching as profile assessments.
+- **Footer:** SHARE SITREP uses the phone's share sheet, or copies if that isn't available. Fire cards also link to NASA FIRMS.
+- There's no "dispersion model" or gridded anomaly map, because Zackscan has no such data yet, and it doesn't draw invented ones.

@@ -21,7 +21,8 @@ export async function forecast(region, { fetch } = {}) {
     hourly: "temperature_2m,relative_humidity_2m",
     daily: "temperature_2m_max,relative_humidity_2m_min",
     past_days: "1",
-    forecast_days: "2",
+    // 3 days so a full 48 h is always ahead, whatever the time of day.
+    forecast_days: "3",
     timezone: "auto",
   });
   const d = await getJson("Open-Meteo", FORECAST + q, { fetch });
@@ -39,8 +40,12 @@ export async function forecast(region, { fetch } = {}) {
     current: { time: c.time, tempC: c.temperature_2m, rh: c.relative_humidity_2m, vpdKpa: c.vapour_pressure_deficit, windKmh: c.wind_speed_10m },
     rh24hAgo,
     // Past day included by past_days=1; keep only now onwards for "next 48 h".
-    hourlyAhead: idx >= 0 ? hourly.slice(idx) : hourly,
-    daily: d.daily.time.map((date, i) => ({ date, tmaxC: d.daily.temperature_2m_max[i], rhMinPct: d.daily.relative_humidity_2m_min[i] })),
+    hourlyAhead: (idx >= 0 ? hourly.slice(idx) : hourly).slice(0, 48), // exactly the next 48 h
+    // Today and tomorrow only (past_days=1 also returns yesterday, which must not count).
+    daily: d.daily.time
+      .map((date, i) => ({ date, tmaxC: d.daily.temperature_2m_max[i], rhMinPct: d.daily.relative_humidity_2m_min[i] }))
+      .filter((r) => r.date >= c.time.slice(0, 10))
+      .slice(0, 2),
   };
 }
 

@@ -65,7 +65,8 @@ function row(r, open, saved) {
   </details></li>`;
 }
 
-export function startRiskPanel(el, { onStatus = () => {}, onMatrix = () => {} } = {}) {
+export function startRiskPanel(el, { onStatus = () => {}, onMatrix = () => {}, onRender = () => {} } = {}) {
+  let rendered = null; // tell onRender only about new data, not the minute-by-minute age redraw
   let shown = null; // what's on screen, to redraw ages and keep open rows open
 
   function render(matrix, source) {
@@ -74,6 +75,10 @@ export function startRiskPanel(el, { onStatus = () => {}, onMatrix = () => {} } 
     el.innerHTML = matrix.regions.map((r) => row(r, open.has(r.id), !source.live)).join("");
     el.classList.toggle("saved", !source.live);
     onStatus(source);
+    if (matrix !== rendered) {
+      rendered = matrix;
+      onRender(matrix, source);
+    }
   }
 
   async function load() {

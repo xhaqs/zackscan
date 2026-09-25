@@ -9,6 +9,21 @@ import { ageLabel } from "./offline-logic.js";
 import { renderTieredAssessment, preferredTier, setPreferredTier, isTiered } from "./tier-toggle.js";
 import { createAlarmController } from "./alarms.js";
 import { renderAlarmSettings } from "./alarm-settings.js";
+import { renderAnomalies } from "./anomaly-deck.js";
+
+// ------------------------------------------------------------ anomaly cards
+const deck = { matrix: null, source: null, full: {} };
+function drawDeck() {
+  if (deck.matrix) renderAnomalies(document.querySelector("#anomalies"), deck.matrix, deck.source, { full: deck.full, onNeedFull: loadFullRegion });
+}
+// Data saver sends the small summary; a card can ask for its region in full.
+async function loadFullRegion(id) {
+  try {
+    const m = await (await fetch("/api/risk?region=" + encodeURIComponent(id), { cache: "no-cache" })).json();
+    if (m.regions?.[0]?.pillars) deck.full[id] = m.regions[0];
+    drawDeck();
+  } catch {}
+}
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -85,6 +100,10 @@ if (notice) {
 
 startRiskPanel($("#risk"), {
   onMatrix: (m) => alarms.onMatrix(m),
+  onRender: (m, s) => {
+    Object.assign(deck, { matrix: m, source: s, full: {} });
+    drawDeck();
+  },
   onStatus: (s) => {
     net.risk = s;
     renderNet();

@@ -11,7 +11,7 @@
 // A cron refreshes the stalest regions every 10 minutes, so visitors almost
 // always get cached data and upstream APIs see a steady, small load.
 
-import { REGIONS, getRegion } from "./regions.js";
+import { REGIONS, getRegion, fireBox } from "./regions.js";
 import { makeStore } from "./store.js";
 import { levelFor } from "./math.js";
 import { scoreSeismic, scoreWildfire, scoreHeat, heatBaselineFromArchive } from "./scoring.js";
@@ -119,6 +119,7 @@ export async function refreshRegion(region, env, deps = {}, { now = Date.now(), 
       asOf,
     });
   else seismic = fallback(prev.seismic, why(quakes) || "no historical baseline yet", now, ["USGS"]);
+  if (seismic.status !== "error") seismic.area = { radiusKm: region.seismicRadiusKm, center: [region.lat, region.lon] };
 
   // Wildfire: score whatever inputs are available; say what's missing.
   const extra = [];
@@ -136,6 +137,8 @@ export async function refreshRegion(region, env, deps = {}, { now = Date.now(), 
       ? fallback(prev.wildfire, extra.join(" ") || "no inputs", now, PILLARS.wildfire.sources)
       : livePillar({ ...wf, partial: wf.partial || extra.length > 0 }, { sources: PILLARS.wildfire.sources, asOf, notes: extra });
   if (!env.FIRMS_MAP_KEY || !env.OPENAQ_API_KEY) wildfire.configured = { firms: !!env.FIRMS_MAP_KEY, openaq: !!env.OPENAQ_API_KEY };
+  // The area each pillar looked at, for maps: [west, south, east, north] and centre.
+  wildfire.area = { box: fireBox(region), center: [region.lat, region.lon] };
 
   // Heat
   let heat;

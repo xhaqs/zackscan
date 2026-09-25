@@ -23,4 +23,11 @@ export const api = {
       headers: { "Content-Type": "application/json", ...KeyVault.headers() },
       body: JSON.stringify({ profile, ...(knownFingerprint ? { knownFingerprint } : {}) }),
     }),
+  /** AI SitRep for one anomaly card (region × hazard pillar), both registers in one call. */
+  analyzeCard: (region, pillar, knownFingerprint) =>
+    call("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...KeyVault.headers() },
+      body: JSON.stringify({ region, pillar, ...(knownFingerprint ? { knownFingerprint } : {}) }),
+    }),
 };
