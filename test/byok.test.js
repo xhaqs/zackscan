@@ -224,3 +224,20 @@ test("Gemini: new auth keys (AQ.…) and older standard keys (AIza…) are both 
   });
   assert.equal(sent, aq);
 });
+
+test("Gemini overload (503): retried once; if it persists, Google's reason is shown (never the key)", async () => {
+  let calls = 0;
+  const busy = () => new Response(JSON.stringify({ error: { code: 503, message: "The model is overloaded. Please try again later.", status: "UNAVAILABLE" } }), { status: 503 });
+  const route = { tier: "platform", provider: "gemini", apiKey: GEMINI_KEY, model: "gemini-3.6-flash" };
+  await assert.rejects(
+    runAssessment(route, { system: "s", prompt: "p" }, { retryDelayMs: 0, fetch: async () => (calls++, busy()) }),
+    (e) => e.code === "provider_busy" && /overloaded/.test(e.message) && !e.message.includes(GEMINI_KEY),
+  );
+  assert.equal(calls, 2, "one retry");
+  calls = 0;
+  const out = await runAssessment(route, { system: "s", prompt: "p" }, {
+    retryDelayMs: 0,
+    fetch: async () => (++calls === 1 ? busy() : Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(GOOD) }] } }] })),
+  });
+  assert.deepEqual(out, GOOD, "the retry succeeds");
+});

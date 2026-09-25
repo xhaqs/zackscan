@@ -42,7 +42,7 @@ export async function runAssessment(route, { system, prompt, schema = ASSESSMENT
   const fetchImpl = deps.fetch || fetch;
   const call = { anthropic: callAnthropic, gemini: callGemini, openai: callOpenAI }[route.provider];
   if (!call) throw new AiRouteError(400, "byok_provider_invalid", "Unknown AI provider.");
-  const text = await call(route, system, prompt, fetchImpl, schema);
+  const text = await call(route, system, prompt, fetchImpl, schema, deps.retryDelayMs != null ? { retryDelayMs: deps.retryDelayMs } : undefined);
   let parsed;
   try {
     parsed = JSON.parse(text);
@@ -80,34 +80,58 @@ async function callAnthropic(route, system, prompt, fetchImpl, schema) {
   return block.text;
 }
 
-async function callGemini(route, system, prompt, fetchImpl, schema) {
-  const res = await fetchImpl(GEMINI_BASE + encodeURIComponent(route.model) + ":generateContent", {
-    method: "POST",
-    // Key in a header, not the URL, so it can't end up in URL logs.
-    headers: { "Content-Type": "application/json", "x-goog-api-key": route.apiKey },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseJsonSchema: schema,
-        // Gemini 3.x spends part of this on thinking before it answers; two tiers need room.
-        maxOutputTokens: 8192,
-      },
-    }),
-  });
+/** Google's own error text (never contains the key), for messages and diagnosis. */
+async function geminiError(res) {
+  const body = await res.text().catch(() => "");
+  try {
+    const e = JSON.parse(body).error || {};
+    return { text: body, message: String(e.message || "").slice(0, 200), status: e.status || "" };
+  } catch {
+    return { text: body, message: body.slice(0, 200), status: "" };
+  }
+}
+
+async function callGemini(route, system, prompt, fetchImpl, schema, { retryDelayMs = 2000 } = {}) {
+  const send = () =>
+    fetchImpl(GEMINI_BASE + encodeURIComponent(route.model) + ":generateContent", {
+      method: "POST",
+      // Key in a header, not the URL, so it can't end up in URL logs.
+      headers: { "Content-Type": "application/json", "x-goog-api-key": route.apiKey },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseJsonSchema: schema,
+          // Gemini 3.x spends part of this on thinking before it answers; two tiers need room.
+          maxOutputTokens: 8192,
+        },
+      }),
+    });
+  let res = await send();
+  // 500/503 mean "overloaded, try again": Google recommends a short backoff retry.
+  if (res.status === 503 || res.status === 500) {
+    await new Promise((r) => setTimeout(r, retryDelayMs));
+    res = await send();
+  }
   if (res.status === 401 || res.status === 403) throw keyRejected(route);
   if (res.status === 400) {
     // Gemini reports a bad key as a 400 with reason API_KEY_INVALID.
-    const body = await res.text();
-    if (/API_KEY_INVALID/.test(body)) throw keyRejected(route);
-    throw new AiRouteError(502, "provider_error", "Gemini rejected the request (400).");
+    const e = await geminiError(res);
+    if (/API_KEY_INVALID/.test(e.text)) throw keyRejected(route);
+    throw new AiRouteError(502, "provider_error", `Gemini rejected the request (400): ${e.message || "no details"}`);
   }
   if (res.status === 429)
     throw new AiRouteError(429, "provider_rate_limited", route.tier === "platform"
       ? "The shared AI tier is busy or out of quota. Add your own key in Settings, or try later."
       : "Gemini is rate-limiting this key. Wait a minute and try again.");
-  if (!res.ok) throw new AiRouteError(502, "provider_error", `Gemini returned an error (${res.status}).`);
+  if (!res.ok) {
+    const e = await geminiError(res);
+    const busy = res.status === 503 || res.status === 500;
+    throw new AiRouteError(502, busy ? "provider_busy" : "provider_error", busy
+      ? `Gemini is overloaded right now (${res.status}${e.message ? ": " + e.message : ""}). Try again in a few minutes.`
+      : `Gemini returned an error (${res.status}${e.message ? ": " + e.message : ""}).`);
+  }
   const data = await res.json();
   const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("");
   if (!text) throw new AiRouteError(502, "ai_bad_output", "The AI returned no answer.");
