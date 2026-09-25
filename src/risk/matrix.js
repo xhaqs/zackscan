@@ -213,7 +213,7 @@ export async function getMatrix(env, deps = {}, { regionId = null, now = Date.no
 
 /**
  * Data-saver version: scores, levels, status and timestamps only, with no
- * components, notes or method text. Roughly a tenth of the size, for poor
+ * components, notes or method text. About a quarter of the size, for poor
  * links and background sync.
  */
 export function summarizeMatrix(m) {

@@ -93,3 +93,18 @@ dialog .check { display: flex; gap: 8px; align-items: center; }
 .saved-note { background: #fde68a; color: #111; padding: 6px 8px; border-radius: 6px; font-size: 0.9rem; }
 button.link { background: none; border: none; color: inherit; text-decoration: underline; padding: 0; }
 .risk-list.saved { opacity: 0.85; }
+
+/* Plain / Researcher toggle */
+.tier-toggle { display: inline-flex; border: 1px solid var(--accent); border-radius: 8px; overflow: hidden; margin: 4px 0 10px; }
+.tier-toggle button { border: none; border-radius: 0; background: transparent; color: var(--text); padding: 6px 14px; }
+.tier-toggle button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.tier-toggle button:focus-visible { outline: 3px solid var(--alert); outline-offset: -3px; }
+.tier-headline { margin: 4px 0; font-size: 1.05rem; }
+.tier-panel h4 { margin: 12px 0 4px; font-size: 0.95rem; }
+.table-wrap { overflow-x: auto; margin: 8px 0; }
+.table-wrap table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+.table-wrap caption { text-align: left; font-weight: 600; padding: 4px 0; }
+.table-wrap th, .table-wrap td { border-bottom: 1px solid var(--accent-soft); padding: 4px 6px; text-align: left; vertical-align: top; }
+.saved-note.fresh { background: var(--accent-soft); }
+fieldset.tier-pref { border: 1px solid var(--accent-soft); border-radius: 8px; margin: 12px 0; padding: 8px 12px; }
+fieldset.tier-pref .check { align-items: flex-start; }

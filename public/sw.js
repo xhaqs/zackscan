@@ -27,6 +27,7 @@ const SHELL_FILES = [
   "/js/offline-logic.js",
   "/js/offline-store.js",
   "/js/poller.js",
+  "/js/tier-toggle.js",
   "/favicon.svg",
   "/manifest.webmanifest",
   "/icons/icon-192.png",

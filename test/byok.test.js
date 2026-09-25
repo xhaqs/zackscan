@@ -7,7 +7,11 @@ import worker from "../src/worker.js";
 
 const ANTHROPIC_KEY = "sk-ant-api03-" + "A".repeat(40);
 const GEMINI_KEY = "AIza" + "B".repeat(35);
-const GOOD = { summary: "s", riskLevel: "low", findings: [], actions: [] };
+const GOOD = {
+  riskLevel: "low",
+  plain: { headline: "h", summary: "Calm today.", whatItMeans: [], whatToDo: ["Nothing needed."] },
+  researcher: { summary: "No anomalies.", findings: [], anomalies: [], dataVariables: [], limitations: [] },
+};
 
 const req = (headers = {}, ip = "1.2.3.4") =>
   new Request("https://zackscan.test/api/analyze", { method: "POST", headers: { "CF-Connecting-IP": ip, ...headers } });
@@ -146,7 +150,7 @@ test("worker: /api/analyze end to end with stubbed feeds and Gemini", async () =
     );
     const data = await res.json();
     assert.equal(res.status, 200);
-    assert.equal(data.tier, "byok");
+    assert.equal(data.billing, "byok");
     assert.equal(data.eventCount, 1);
     assert.deepEqual(data.assessment, GOOD);
     assert.deepEqual([...new Set(hosts)].sort(), ["eonet.gsfc.nasa.gov", "generativelanguage.googleapis.com"]);

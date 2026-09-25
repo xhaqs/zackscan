@@ -59,17 +59,26 @@ export async function resolveAiRoute(request, env) {
  * Wrap a handler that needs AI. The handler gets `route` without the key
  * attached to anything it might serialize by accident.
  */
-export function withAiRoute(handler) {
+/**
+ * @param lazy  pass the handler a getRoute() function instead of a route, so
+ *              it can answer from cache before any key is checked or any
+ *              shared-tier allowance is used.
+ */
+export function withAiRoute(handler, { lazy = false } = {}) {
   return async (request, env, ctx) => {
     let route;
-    try {
-      route = await resolveAiRoute(request, env);
-    } catch (e) {
-      if (e instanceof AiRouteError) return aiErrorResponse(e);
-      throw e;
+    if (!lazy) {
+      try {
+        route = await resolveAiRoute(request, env);
+      } catch (e) {
+        if (e instanceof AiRouteError) return aiErrorResponse(e);
+        throw e;
+      }
     }
+    let memo;
+    const getRoute = () => (memo ||= resolveAiRoute(request, env));
     try {
-      return await handler(request, env, ctx, route);
+      return await handler(request, env, ctx, lazy ? getRoute : route);
     } catch (e) {
       if (e instanceof AiRouteError) return aiErrorResponse(e);
       // Unknown failure: say nothing specific, in case the message holds request data.

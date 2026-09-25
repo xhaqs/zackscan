@@ -48,6 +48,12 @@
       <h2>Field settings</h2>
       <label class="check"><input id="data-saver" type="checkbox"> Data saver: smaller, less frequent updates</label>
       <p class="hint">Turns on by itself when your browser reports a slow or metered connection.</p>
+      <fieldset class="tier-pref">
+        <legend>AI assessments open in</legend>
+        <label class="check"><input type="radio" name="tier-pref" value="plain"> Plain language: what it means for people and what to do</label>
+        <label class="check"><input type="radio" name="tier-pref" value="researcher"> Institutional / Researcher: metrics, baselines, confidence, raw variables</label>
+        <p class="hint">Both versions come with every assessment, so you can switch between them any time without waiting.</p>
+      </fieldset>
       <h2>Your AI key</h2>
       <p id="key-state"></p>
       <label>Provider

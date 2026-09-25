@@ -111,12 +111,23 @@ Offline, a banner says so and gives the data's age. Every region is marked **Sav
 - Offline: no requests at all. It waits for the browser's `online` event, then refreshes immediately.
 - Failures: the interval doubles each time (capped at 30 min), with ±10% jitter.
 - Hidden tab: paused.
-- Data saver: on when the user ticks it in Settings, the browser reports Save-Data or 2G, or two responses in a row took over 5 s. It triples intervals and fetches `/api/risk?fields=summary` (about a tenth of the size). Full details for a region load on request.
+- Data saver: on when the user ticks it in Settings, the browser reports Save-Data or 2G, or two responses in a row took over 5 s. It triples intervals and fetches `/api/risk?fields=summary` (about a quarter of the size: ~0.6 KB against ~2.5 KB brotli-compressed). Full details for a region load on request.
 
-**Less data on the wire:** `/api/risk` and `/api/feed` send ETags, so an unchanged poll gets an empty `304`. Cloudflare compresses JSON (gzip/brotli) automatically.
+**Less data on the wire:** `/api/risk` and `/api/feed` send ETags, so an unchanged poll gets an empty `304`. Cloudflare compresses JSON automatically (brotli: the full matrix goes from ~15 KB to ~2.5 KB on the wire).
 
 **Background refresh (Chromium):** after a failed fetch the page registers a one-off Background Sync, and the service worker saves the summary matrix when the connection returns. An installed app also registers Periodic Background Sync (hourly at most; the browser decides). Other browsers skip this and refresh when the app is opened.
 
 **Health:** `GET /api/health` shows the last cron run (a heartbeat written by each run) and which optional keys are set.
 
 Not included yet: offline maps. The app has no map yet, and tile providers' terms (for example OpenStreetMap's tile policy) forbid bulk offline prefetching, so maps need a provider that licenses offline use.
+
+## Comprehension tiers (plain language / researcher)
+
+Every AI assessment comes in two registers, generated together in **one** LLM call (`src/ai/prompts.js`):
+
+- **Plain language:** a headline, what it means for people, and what to do. No jargon, abbreviations or statistics.
+- **Institutional / Researcher:** findings with values and confidence, anomalies against baselines (z-scores, Poisson p-values, wet-bulb, VPD, FRP…), the raw data variables with units and sources, and limitations.
+
+The prompt carries the instructions for both registers, each aimed at its own field of a strict JSON schema. Your preferred tier (**Settings → AI assessments open in**) only picks which view opens first. It isn't part of the prompt, so it never changes the result or the cache key. The toggle above each assessment switches views instantly from the stored result, with no network call, and works offline.
+
+**Regenerate only when the data changes:** the server fingerprints exactly what the prompt is built from: prompt version, profile, the events (id, time, magnitude, updates) and the risk-matrix values (not their timestamps). The client sends the fingerprint of the assessment it holds, and if nothing changed the answer is `{unchanged: true}`, with no LLM call, no key check and no shared-tier allowance used. Shared-tier results are also cached in KV by fingerprint for 6 h, so visitors share one generation.

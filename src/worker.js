@@ -16,7 +16,7 @@ import { makeStore } from "./risk/store.js";
 import { getRegion } from "./risk/regions.js";
 
 const MAX_BODY = 4 * 1024;
-const analyze = withAiRoute(handleAnalyze);
+const analyze = withAiRoute(handleAnalyze, { lazy: true });
 
 export default {
   async fetch(request, env, ctx) {

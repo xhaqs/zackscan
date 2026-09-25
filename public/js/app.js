@@ -6,6 +6,7 @@ import { startRiskPanel } from "./risk.js";
 import { dataSaverOn } from "./poller.js";
 import { saveSitrep, loadSitrep } from "./offline-store.js";
 import { ageLabel } from "./offline-logic.js";
+import { renderTieredAssessment, preferredTier, setPreferredTier, isTiered } from "./tier-toggle.js";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -89,20 +90,19 @@ function render(s) {
 }
 
 // ------------------------------------------------------------ AI assessment (SitRep)
-function renderSitrep(r, savedAt) {
-  const a = r.assessment;
-  return `
-    ${savedAt ? `<p class="saved-note">Saved assessment from ${esc(ageLabel(savedAt))} (${esc(new Date(savedAt).toLocaleString())}). Not live.</p>` : ""}
-    <p class="risk risk-${esc(a.riskLevel)}">Risk: ${esc(a.riskLevel)}</p>
-    <p>${esc(a.summary)}</p>
-    <ul>${a.findings.map((f) => `<li><b>${esc(f.metric)}</b>: ${esc(f.observation)} <small>(${esc(f.confidence)} confidence)</small></li>`).join("")}</ul>
-    ${a.actions.length ? `<h3>Actions</h3><ul>${a.actions.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
-    <p class="meta">${r.tier === "byok" ? "Your key" : "Shared tier" + (r.allowance ? ` (${r.allowance.used}/${r.allowance.max} today)` : "")} · ${esc(r.model)} · ${r.eventCount} events</p>`;
+// Each assessment holds BOTH registers (plain + researcher). The toggle switches
+// between them locally; a new AI call happens only when the data changed.
+async function savedSitrep(profileId) {
+  const saved = await loadSitrep(profileId);
+  return saved && isTiered(saved.result) ? saved : null; // results from before the two-tier layer are ignored
 }
 
 async function showSavedSitrep(prefix = "") {
-  const saved = await loadSitrep(mission.state.profile.id);
-  $("#assessment").innerHTML = prefix + (saved ? renderSitrep(saved.result, saved.savedAt) : "");
+  const saved = await savedSitrep(mission.state.profile.id);
+  const out = $("#assessment");
+  if (!saved) return void (out.innerHTML = prefix);
+  const note = `${prefix}<p class="saved-note">Saved assessment from ${esc(ageLabel(saved.savedAt))}. Not live.</p>`;
+  renderTieredAssessment(out, saved.result, { note });
 }
 showSavedSitrep();
 
@@ -111,22 +111,39 @@ $("#analyze").addEventListener("click", async () => {
   const btn = $("#analyze");
   const profileId = mission.state.profile.id;
   btn.disabled = true;
-  out.innerHTML = "<p>Assessing…</p>";
+  const saved = await savedSitrep(profileId);
+  out.insertAdjacentHTML("afterbegin", "<p class=\"meta assessing\">Checking for new data…</p>");
   try {
-    const r = await api.analyze(profileId);
+    const r = await api.analyze(profileId, saved?.result.fingerprint);
+    if (r.unchanged && saved) {
+      // Same telemetry as the saved assessment: reuse it, no AI call was made.
+      const note = `<p class="saved-note fresh">No new data since this assessment (${esc(ageLabel(Date.parse(saved.result.generatedAt) || saved.savedAt))}), so it wasn’t regenerated.</p>`;
+      renderTieredAssessment(out, saved.result, { note });
+      return;
+    }
     if (!r.assessment) {
       out.innerHTML = `<p>${esc(r.note)}</p>`;
       return;
     }
-    out.innerHTML = renderSitrep(r);
+    renderTieredAssessment(out, r);
     await saveSitrep(profileId, r); // the public result only; the key is never stored here
   } catch (e) {
-    const offline = navigator.onLine === false || e instanceof TypeError; // fetch's network failure
-    await showSavedSitrep(`<p class="err">${esc(offline ? "You're offline, so no new assessment." : e.message)}</p>`);
+    const offline = navigator.onLine === false || e instanceof TypeError; // fetch network failure
+    await showSavedSitrep(`<p class="err">${esc(offline ? "You’re offline, so no new assessment." : e.message)}</p>`);
     if (e.code === "byok_key_rejected" || e.code === "platform_rate_limited" || e.code === "platform_unavailable") $("#settings").showModal();
   } finally {
+    out.querySelector(".assessing")?.remove();
     btn.disabled = false;
   }
+});
+
+// Settings: default explanation style, kept in step with every open toggle.
+for (const r of document.querySelectorAll("input[name=tier-pref]")) {
+  r.checked = r.value === preferredTier();
+  r.addEventListener("change", () => r.checked && setPreferredTier(r.value));
+}
+addEventListener("zackscan:tier", (e) => {
+  for (const r of document.querySelectorAll("input[name=tier-pref]")) r.checked = r.value === e.detail;
 });
 
 // ------------------------------------------------------------ service worker

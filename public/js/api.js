@@ -16,10 +16,11 @@ async function call(path, opts = {}) {
 export const api = {
   profiles: () => call("/api/profiles"),
   feed: (profile) => call("/api/feed?profile=" + encodeURIComponent(profile)),
-  analyze: (profile) =>
+  /** knownFingerprint: the data version we already hold; the server says {unchanged:true} if it's current. */
+  analyze: (profile, knownFingerprint) =>
     call("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...KeyVault.headers() },
-      body: JSON.stringify({ profile }),
+      body: JSON.stringify({ profile, ...(knownFingerprint ? { knownFingerprint } : {}) }),
     }),
 };

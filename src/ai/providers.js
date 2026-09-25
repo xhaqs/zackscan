@@ -38,11 +38,11 @@ export const ASSESSMENT_SCHEMA = {
  * Run one assessment. `route` comes from resolveAiRoute; `deps.fetch` lets
  * tests stand in for the network.
  */
-export async function runAssessment(route, { system, prompt }, deps = {}) {
+export async function runAssessment(route, { system, prompt, schema = ASSESSMENT_SCHEMA }, deps = {}) {
   const fetchImpl = deps.fetch || fetch;
   const call = { anthropic: callAnthropic, gemini: callGemini, openai: callOpenAI }[route.provider];
   if (!call) throw new AiRouteError(400, "byok_provider_invalid", "Unknown AI provider.");
-  const text = await call(route, system, prompt, fetchImpl);
+  const text = await call(route, system, prompt, fetchImpl, schema);
   let parsed;
   try {
     parsed = JSON.parse(text);
@@ -52,7 +52,7 @@ export async function runAssessment(route, { system, prompt }, deps = {}) {
   return parsed;
 }
 
-async function callAnthropic(route, system, prompt, fetchImpl) {
+async function callAnthropic(route, system, prompt, fetchImpl, schema) {
   const client = new Anthropic({ apiKey: route.apiKey, baseURL: ANTHROPIC_BASE, fetch: fetchImpl, maxRetries: 1 });
   let response;
   try {
@@ -61,7 +61,7 @@ async function callAnthropic(route, system, prompt, fetchImpl) {
     response = await client.messages.create({
       model: route.model,
       max_tokens: 16000,
-      output_config: { format: { type: "json_schema", schema: ASSESSMENT_SCHEMA } },
+      output_config: { format: { type: "json_schema", schema } },
       system,
       messages: [{ role: "user", content: prompt }],
     });
@@ -80,7 +80,7 @@ async function callAnthropic(route, system, prompt, fetchImpl) {
   return block.text;
 }
 
-async function callGemini(route, system, prompt, fetchImpl) {
+async function callGemini(route, system, prompt, fetchImpl, schema) {
   const res = await fetchImpl(GEMINI_BASE + encodeURIComponent(route.model) + ":generateContent", {
     method: "POST",
     // Key in a header, not the URL, so it can't end up in URL logs.
@@ -90,8 +90,9 @@ async function callGemini(route, system, prompt, fetchImpl) {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
         responseMimeType: "application/json",
-        responseJsonSchema: ASSESSMENT_SCHEMA,
-        maxOutputTokens: 2048,
+        responseJsonSchema: schema,
+        // Gemini 3.x spends part of this on thinking before it answers; two tiers need room.
+        maxOutputTokens: 8192,
       },
     }),
   });
@@ -113,7 +114,7 @@ async function callGemini(route, system, prompt, fetchImpl) {
   return text;
 }
 
-async function callOpenAI(route, system, prompt, fetchImpl) {
+async function callOpenAI(route, system, prompt, fetchImpl, schema) {
   const res = await fetchImpl(OPENAI_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + route.apiKey },
@@ -123,7 +124,7 @@ async function callOpenAI(route, system, prompt, fetchImpl) {
         { role: "system", content: system },
         { role: "user", content: prompt },
       ],
-      response_format: { type: "json_schema", json_schema: { name: "assessment", strict: true, schema: ASSESSMENT_SCHEMA } },
+      response_format: { type: "json_schema", json_schema: { name: "assessment", strict: true, schema } },
       // GPT-6 models reason before answering, and that uses part of this budget.
       max_completion_tokens: 16000,
     }),
