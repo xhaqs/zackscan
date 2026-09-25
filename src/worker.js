@@ -14,6 +14,7 @@ import { getMatrix, refreshStalest, summarizeMatrix, matrixVersion } from "./ris
 import { jsonWithEtag } from "./etag.js";
 import { makeStore } from "./risk/store.js";
 import { handleAlerts, runAlertSweep } from "./routes/alerts.js";
+import { getDispersion, getHeatGrid } from "./risk/grids.js";
 import { getRegion } from "./risk/regions.js";
 
 const MAX_BODY = 4 * 1024;
@@ -49,6 +50,23 @@ export default {
     if (url.pathname.startsWith("/api/alerts/")) {
       const res = await handleAlerts(route, request, env);
       return res || json({ error: "Not found.", code: "not_found" }, 404);
+    }
+
+    // Gridded maps, built on demand and cached per region (see src/risk/grids.js).
+    if (route === "GET /api/dispersion" || route === "GET /api/heatgrid") {
+      const region = getRegion(url.searchParams.get("region"));
+      if (!region) return json({ error: "Unknown region.", code: "region_invalid" }, 400);
+      try {
+        let body;
+        if (route === "GET /api/dispersion") {
+          // Fire detections come from the cached risk matrix: no extra FIRMS call.
+          const m = await getMatrix(env, {}, { regionId: region.id, computeBudget: 0 }).catch(() => null);
+          body = await getDispersion(region, env, {}, { fires: m?.regions?.[0]?.pillars?.wildfire?.components?.activity?.points || [] });
+        } else body = await getHeatGrid(region, env);
+        return jsonWithEtag(request, body, [route, region.id, body.fetchedAt], { "Cache-Control": "public, max-age=600" });
+      } catch (e) {
+        return json({ error: "The map data couldn't be loaded right now. Try again in a few minutes.", code: "source_error", detail: String(e?.message || e).slice(0, 120) }, 502);
+      }
     }
 
     if (route === "GET /api/risk") {

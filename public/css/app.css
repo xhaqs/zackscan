@@ -243,3 +243,24 @@ section.ops .tier-toggle button[aria-pressed="true"] { background: #0e7490; colo
 .card-foot .action:focus-visible { outline: 3px solid #22d3ee; outline-offset: 2px; }
 .card-foot .ext { text-align: center; color: #67e8f9; font-size: 0.85rem; }
 section.ops button.link { color: #67e8f9; }
+
+/* Map sheet (dispersion / heat anomaly) and secondary card action */
+.card-foot .action.secondary { background: transparent; color: #e5e7eb; border: 1px solid rgba(34, 211, 238, 0.55); }
+dialog.map-sheet { --ink: #e5e7eb; --ink-2: #9ca3af; --ink-3: #6b7280; --glass-border: rgba(255, 255, 255, 0.08); background: #0b0f17; color: #e5e7eb; }
+dialog.map-sheet .sheet-head { border-bottom-color: rgba(255, 255, 255, 0.08); }
+dialog.map-sheet .sheet-head h2 { font-size: 1rem; }
+dialog.map-sheet .sheet-body { max-width: 560px; margin: 0 auto; width: 100%; }
+dialog.map-sheet .tier-toggle { border-color: rgba(255, 255, 255, 0.15); }
+dialog.map-sheet .tier-toggle button { color: #9ca3af; }
+dialog.map-sheet .tier-toggle button[aria-pressed="true"] { background: #0e7490; color: #fff; }
+.map-summary { font-size: 0.95rem; line-height: 1.5; }
+.map-note { font-size: 0.78rem; color: #9ca3af; line-height: 1.45; }
+.map-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+.map-controls input[type="range"] { flex: 1 1 160px; accent-color: #22d3ee; }
+.map-when { font-size: 0.85rem; color: #e5e7eb; min-width: 150px; }
+.map-legend { margin: 6px 0; font-size: 0.75rem; color: #9ca3af; }
+.map-legend-title { margin-bottom: 4px; }
+.map-legend-row { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.map-legend-row span { display: inline-flex; align-items: center; gap: 4px; }
+.map-legend-row i { width: 18px; height: 10px; border-radius: 2px; display: inline-block; }
+.grid-map svg { touch-action: none; }

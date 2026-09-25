@@ -38,6 +38,8 @@ const SHELL_FILES = [
   "/js/charts.js",
   "/js/anomaly-card.js",
   "/js/anomaly-deck.js",
+  "/js/grid-map.js",
+  "/js/map-sheet.js",
   "/favicon.svg",
   "/manifest.webmanifest",
   "/icons/icon-192.png",

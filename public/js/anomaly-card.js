@@ -14,6 +14,7 @@ import { preferredTier, setPreferredTier, TIER_LABELS } from "./tier-toggle.js";
 import { ageLabel } from "./offline-logic.js";
 import { loadSitrep, saveSitrep } from "./offline-store.js";
 import { api } from "./api.js";
+import { openDispersion, openHeatGrid } from "./map-sheet.js";
 
 const LEVEL_LABEL = { low: "Low", guarded: "Guarded", elevated: "Elevated", high: "High", severe: "Severe", unknown: "Unknown" };
 const SHORT = { seismic: "SEISMIC", wildfire: "FIRE & SMOKE", heat: "HEAT", glof: "GLOF" };
@@ -179,6 +180,14 @@ export function createAnomalyCard({ region, key, pillar, source, onNeedFull }) {
     }
   }
   const shareBtn = h("button", { type: "button", class: "action", onclick: share }, "SHARE SITREP");
+  // Gridded model views (loaded only when opened): smoke/dust spread for fire
+  // cards, the spatial heat anomaly for heat cards.
+  const mapBtn =
+    key === "wildfire"
+      ? h("button", { type: "button", class: "action secondary", onclick: () => openDispersion(region) }, "VIEW DISPERSION MODEL")
+      : key === "heat"
+        ? h("button", { type: "button", class: "action secondary", onclick: () => openHeatGrid(region) }, "VIEW ANOMALY MAP")
+        : null;
 
   const firmsLink =
     key === "wildfire"
@@ -211,7 +220,7 @@ export function createAnomalyCard({ region, key, pillar, source, onNeedFull }) {
       h("div", { class: "sitrep-foot" }, src, aiBtn),
       err,
     ),
-    h("footer", { class: "card-foot" }, shareBtn, firmsLink),
+    h("footer", { class: "card-foot" }, mapBtn, shareBtn, firmsLink),
   );
 
   const onPref = (e) => show(e.detail);
