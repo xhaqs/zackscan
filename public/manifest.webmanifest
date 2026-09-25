@@ -1,0 +1,17 @@
+{
+  "id": "/",
+  "name": "Zackscan",
+  "short_name": "Zackscan",
+  "description": "Environmental hazard and disaster anomaly monitor that keeps working offline.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f8f6",
+  "theme_color": "#1f8a70",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

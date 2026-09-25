@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Zackscan</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <meta name="theme-color" content="#1f8a70">
   <link rel="stylesheet" href="/css/app.css">
   <script type="module" src="/js/app.js"></script>
 </head>
@@ -16,6 +19,8 @@
     </label>
     <button id="open-settings" type="button">⚙ Settings</button>
   </header>
+  <div id="net-status" class="net-status" role="status" aria-live="polite" hidden></div>
+  <div id="update-bar" class="net-status" hidden>A new version of Zackscan is ready. <button id="update-now" type="button">Update</button></div>
 
   <main>
     <section class="wide" aria-labelledby="risk-h">
@@ -40,6 +45,9 @@
 
   <dialog id="settings">
     <form id="key-form">
+      <h2>Field settings</h2>
+      <label class="check"><input id="data-saver" type="checkbox"> Data saver: smaller, less frequent updates</label>
+      <p class="hint">Turns on by itself when your browser reports a slow or metered connection.</p>
       <h2>Your AI key</h2>
       <p id="key-state"></p>
       <label>Provider

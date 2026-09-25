@@ -10,7 +10,9 @@ import { withAiRoute } from "./middleware/ai-key.js";
 import { handleAnalyze } from "./routes/analyze.js";
 import { loadProfileEvents } from "./feeds.js";
 import { json } from "./http.js";
-import { getMatrix, refreshStalest } from "./risk/matrix.js";
+import { getMatrix, refreshStalest, summarizeMatrix, matrixVersion } from "./risk/matrix.js";
+import { jsonWithEtag } from "./etag.js";
+import { makeStore } from "./risk/store.js";
 import { getRegion } from "./risk/regions.js";
 
 const MAX_BODY = 4 * 1024;
@@ -26,15 +28,27 @@ export default {
     if (route === "GET /api/feed") {
       const profile = getProfile(url.searchParams.get("profile"));
       if (!profile) return json({ error: "Unknown mission profile.", code: "profile_invalid" }, 400);
-      return json({ profile: profile.id, ...(await loadProfileEvents(profile)) });
+      const feed = await loadProfileEvents(profile);
+      // no-cache = "check with me first": the browser revalidates with the ETag
+      // and gets an empty 304 when the events haven't changed.
+      return jsonWithEtag(request, { profile: profile.id, ...feed }, [profile.id, feed.events.map((e) => [e.id, e.time]), feed.errors], {
+        "Cache-Control": "no-cache",
+      });
+    }
+
+    if (route === "GET /api/health") {
+      const cron = await makeStore(env).get("cron:last");
+      return json({ ok: true, cron: cron || { state: "never run" }, keys: { firms: !!env.FIRMS_MAP_KEY, openaq: !!env.OPENAQ_API_KEY, platformAi: !!env.PLATFORM_GEMINI_KEY } });
     }
 
     if (route === "GET /api/risk") {
       const regionId = url.searchParams.get("region");
       if (regionId && !getRegion(regionId)) return json({ error: "Unknown region.", code: "region_invalid" }, 400);
+      const fields = url.searchParams.get("fields") === "summary" ? "summary" : "full";
       const matrix = await getMatrix(env, {}, { regionId });
-      // Short public cache: data changes every ~20 min, and this soaks up bursts.
-      return json(matrix, 200, { "Cache-Control": "public, max-age=60" });
+      const body = fields === "summary" ? summarizeMatrix(matrix) : matrix;
+      // Fresh for 60 s, then revalidated by ETag: unchanged data costs a 304.
+      return jsonWithEtag(request, body, matrixVersion(matrix, fields), { "Cache-Control": "public, max-age=60" });
     }
 
     if (route === "POST /api/analyze") {
@@ -48,8 +62,22 @@ export default {
   },
 
   // Cron (wrangler.toml): keep the risk matrix warm, a few regions per run.
+  // Every run leaves a heartbeat in KV, so /api/health can show whether the
+  // cron is actually firing without needing access to the Worker's logs.
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(refreshStalest(env).then((ids) => console.log("risk refreshed:", ids.join(",") || "none due")));
+    const store = makeStore(env);
+    const startedAt = new Date().toISOString();
+    ctx.waitUntil(
+      (async () => {
+        await store.put("cron:last", { startedAt, cron: event.cron, state: "running" });
+        try {
+          const refreshed = await refreshStalest(env, { store });
+          await store.put("cron:last", { startedAt, finishedAt: new Date().toISOString(), cron: event.cron, state: "ok", refreshed });
+        } catch (e) {
+          await store.put("cron:last", { startedAt, finishedAt: new Date().toISOString(), cron: event.cron, state: "error", error: String(e?.message || e) });
+        }
+      })(),
+    );
   },
 };
 

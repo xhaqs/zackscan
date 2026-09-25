@@ -85,3 +85,11 @@ dialog .check { display: flex; gap: 8px; align-items: center; }
 
 /* The profile's light tint (set inline by state.js) must not override dark mode. */
 @media (prefers-color-scheme: dark) { body { background: #0f1211; } }
+
+/* Connection status and update bar */
+.net-status { padding: 8px 16px; background: var(--accent-soft); color: #111; font-size: 0.9rem; overflow-wrap: anywhere; }
+.net-status.offline { background: #fde68a; }
+.net-status button { padding: 2px 10px; margin-left: 8px; }
+.saved-note { background: #fde68a; color: #111; padding: 6px 8px; border-radius: 6px; font-size: 0.9rem; }
+button.link { background: none; border: none; color: inherit; text-decoration: underline; padding: 0; }
+.risk-list.saved { opacity: 0.85; }

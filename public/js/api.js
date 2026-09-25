@@ -2,7 +2,7 @@
 import { KeyVault } from "./keyvault.js";
 
 async function call(path, opts = {}) {
-  const res = await fetch(path, { credentials: "same-origin", ...opts });
+  const res = await fetch(path, { credentials: "same-origin", cache: "no-cache", ...opts }); // revalidate, never trust the HTTP cache blindly
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = new Error(data.error || `Request failed (${res.status})`);

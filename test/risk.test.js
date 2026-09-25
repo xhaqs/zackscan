@@ -231,3 +231,20 @@ test("worker: /api/risk rejects unknown regions", async () => {
   const res = await worker.fetch(new Request("https://z.test/api/risk?region=atlantis"), {}, {});
   assert.equal(res.status, 400);
 });
+
+test("cron leaves a heartbeat that /api/health reports", async () => {
+  _resetMemoryStore();
+  const waits = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = fakeApis().fetch;
+  try {
+    await worker.scheduled({ cron: "*/10 * * * *" }, {}, { waitUntil: (p) => waits.push(p) });
+    await Promise.all(waits);
+    const h = await (await worker.fetch(new Request("https://z.test/api/health"), {}, {})).json();
+    assert.equal(h.cron.state, "ok");
+    assert.equal(h.cron.refreshed.length, 3);
+    assert.equal(h.keys.firms, false);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

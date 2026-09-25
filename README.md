@@ -93,3 +93,30 @@ Bands: 0–19 low, 20–39 guarded, 40–59 elevated, 60–79 high, 80–100 sev
 Add them as GitHub repo secrets and CI pushes them to the Worker. Without them, those inputs show as off instead of being made up.
 
 **Licensing:** Open-Meteo's free API is for non-commercial use only. Commercial use, such as paid agency contracts, needs their paid plan.
+
+## Offline and low-bandwidth use
+
+Built for field teams on poor or missing connections.
+
+**The app opens offline.** The service worker (`public/sw.js`) precaches the app shell and serves it cache-first, refreshing it in the background. Each deploy stamps `sw.js` with the commit SHA, so browsers install the new version and delete old caches. The page shows **Update** instead of reloading on its own.
+
+**Last known data, clearly labelled** (`public/js/offline-store.js`, IndexedDB `zackscan-offline`):
+- `snapshots`: the last successful risk matrix (full and summary) and each profile's event feed, with the time they were fetched.
+- `pillars`: the most recent real reading of each region's seismic, wildfire/smoke and heat pillar. It never goes backwards, and it fills gaps when a fresh pillar has no data, marked `cached` with its own time.
+- `sitreps`: the last AI assessment for each mission profile (the result only, never the key).
+
+Offline, a banner says so and gives the data's age. Every region is marked **Saved on this device · Updated X min ago**, and events show "Offline: N events saved X ago". Saved data is never shown as live. The page always revalidates API calls (`cache: "no-cache"`), so the browser's HTTP cache can't pass old data off as live either.
+
+**Polling that saves battery and data** (`public/js/poller.js`, rules in `offline-logic.js`):
+- Offline: no requests at all. It waits for the browser's `online` event, then refreshes immediately.
+- Failures: the interval doubles each time (capped at 30 min), with ±10% jitter.
+- Hidden tab: paused.
+- Data saver: on when the user ticks it in Settings, the browser reports Save-Data or 2G, or two responses in a row took over 5 s. It triples intervals and fetches `/api/risk?fields=summary` (about a tenth of the size). Full details for a region load on request.
+
+**Less data on the wire:** `/api/risk` and `/api/feed` send ETags, so an unchanged poll gets an empty `304`. Cloudflare compresses JSON (gzip/brotli) automatically.
+
+**Background refresh (Chromium):** after a failed fetch the page registers a one-off Background Sync, and the service worker saves the summary matrix when the connection returns. An installed app also registers Periodic Background Sync (hourly at most; the browser decides). Other browsers skip this and refresh when the app is opened.
+
+**Health:** `GET /api/health` shows the last cron run (a heartbeat written by each run) and which optional keys are set.
+
+Not included yet: offline maps. The app has no map yet, and tile providers' terms (for example OpenStreetMap's tile policy) forbid bulk offline prefetching, so maps need a provider that licenses offline use.

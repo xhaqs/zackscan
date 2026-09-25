@@ -1,10 +1,15 @@
 // App state. Selecting a Mission Profile changes three things at once:
-//   1. how often feeds are polled (profile.pollMs)
+//   1. how often feeds are polled (profile.pollMs, adapted by the poller)
 //   2. the UI palette (CSS custom properties on <html>)
 //   3. what the AI evaluates (the Worker reads the profile's metrics)
+//
+// Offline: each successful feed is saved to IndexedDB. If a fetch fails, the
+// saved events are shown and `offlineFrom` says how old they are.
 
 import { PROFILES, DEFAULT_PROFILE, getProfile } from "./profiles.js";
 import { api } from "./api.js";
+import { createPoller, timed } from "./poller.js";
+import { saveSnapshot, loadSnapshot } from "./offline-store.js";
 
 const PREF = "zackscan.profile";
 
@@ -16,9 +21,8 @@ function savedProfile() {
   }
 }
 
-export function createMissionState({ root = document.documentElement, onChange = () => {} } = {}) {
-  const state = { profile: null, events: [], feedErrors: [], lastFetch: 0, loading: false, error: null };
-  let timer = null;
+export function createMissionState({ root = document.documentElement, onChange = () => {}, onPoll = () => {} } = {}) {
+  const state = { profile: null, events: [], feedErrors: [], lastFetch: 0, loading: false, error: null, offlineFrom: null };
   let generation = 0; // ignore answers from a profile we've since left
 
   function applyPalette(p) {
@@ -28,15 +32,21 @@ export function createMissionState({ root = document.documentElement, onChange =
 
   async function poll() {
     const gen = generation;
+    const id = state.profile.id;
     state.loading = true;
     onChange(state);
     try {
-      const data = await api.feed(state.profile.id);
+      const data = await timed(() => api.feed(id));
       if (gen !== generation) return;
-      Object.assign(state, { events: data.events, feedErrors: data.errors, lastFetch: data.fetchedAt, error: null });
+      Object.assign(state, { events: data.events, feedErrors: data.errors, lastFetch: data.fetchedAt, error: null, offlineFrom: null });
+      await saveSnapshot("feed:" + id, data, data.fetchedAt || Date.now());
     } catch (e) {
       if (gen !== generation) return;
       state.error = e.message;
+      const snap = await loadSnapshot("feed:" + id);
+      if (snap && gen === generation)
+        Object.assign(state, { events: snap.data.events, feedErrors: snap.data.errors || [], lastFetch: snap.fetchedAt, offlineFrom: snap.fetchedAt });
+      throw e; // let the poller back off
     } finally {
       if (gen === generation) {
         state.loading = false;
@@ -45,10 +55,7 @@ export function createMissionState({ root = document.documentElement, onChange =
     }
   }
 
-  function schedule() {
-    clearInterval(timer);
-    timer = setInterval(() => document.visibilityState === "visible" && poll(), state.profile.pollMs);
-  }
+  const poller = createPoller({ task: poll, baseMs: () => state.profile.pollMs, onState: onPoll });
 
   const api_ = {
     get state() {
@@ -58,25 +65,16 @@ export function createMissionState({ root = document.documentElement, onChange =
     setProfile(id) {
       const p = getProfile(id) || PROFILES[DEFAULT_PROFILE];
       generation++;
-      state.profile = p;
-      state.events = [];
+      Object.assign(state, { profile: p, events: [], offlineFrom: null, error: null });
       try {
         localStorage.setItem(PREF, p.id);
       } catch {}
       applyPalette(p);
-      schedule();
-      poll();
+      poller.restart();
     },
-    refresh: poll,
-    stop() {
-      clearInterval(timer);
-    },
+    refresh: () => poller.restart(),
+    stop: () => poller.stop(),
   };
-
-  // Catch up straight away when the tab comes back into view.
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && state.profile && Date.now() - state.lastFetch > state.profile.pollMs) poll();
-  });
 
   api_.setProfile(savedProfile() || DEFAULT_PROFILE);
   return api_;

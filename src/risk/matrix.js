@@ -211,6 +211,36 @@ export async function getMatrix(env, deps = {}, { regionId = null, now = Date.no
   };
 }
 
+/**
+ * Data-saver version: scores, levels, status and timestamps only, with no
+ * components, notes or method text. Roughly a tenth of the size, for poor
+ * links and background sync.
+ */
+export function summarizeMatrix(m) {
+  const slim = (p) => ({
+    score: p.score,
+    level: p.level,
+    status: p.status,
+    asOf: p.asOf,
+    realtime: p.realtime,
+    ...(p.label ? { label: p.label } : {}),
+  });
+  return {
+    schema: m.schema,
+    fields: "summary",
+    generatedAt: m.generatedAt,
+    scoreBands: m.scoreBands,
+    regions: m.regions.map((r) =>
+      r.pillars
+        ? { id: r.id, name: r.name, updatedAt: r.updatedAt, overall: { score: r.overall.score, level: r.overall.level }, pillars: Object.fromEntries(Object.entries(r.pillars).map(([k, p]) => [k, slim(p)])), ...(r.outdated ? { outdated: true } : {}) }
+        : r,
+    ),
+  };
+}
+
+/** What changing means for caching: which regions changed, and when. */
+export const matrixVersion = (m, fields) => [fields, m.regions.map((r) => [r.id, r.updatedAt || null, !!r.pending, !!r.outdated])];
+
 /** Cron: refresh the `count` stalest regions that are older than `minAgeMs`. */
 export async function refreshStalest(env, deps = {}, { count = 3, now = Date.now(), minAgeMs = 15 * 60_000 } = {}) {
   const store = deps.store || makeStore(env);
