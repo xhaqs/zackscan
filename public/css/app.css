@@ -108,3 +108,23 @@ button.link { background: none; border: none; color: inherit; text-decoration: u
 .saved-note.fresh { background: var(--accent-soft); }
 fieldset.tier-pref { border: 1px solid var(--accent-soft); border-radius: 8px; margin: 12px 0; padding: 8px 12px; }
 fieldset.tier-pref .check { align-items: flex-start; }
+
+/* Alarms */
+.alarm-banner { position: sticky; top: 0; z-index: 10; }
+.alarm-item { display: grid; gap: 4px; padding: 10px 16px; background: #fde68a; color: #111; border-bottom: 2px solid #b45309; }
+.alarm-item.sev-critical { background: #b91c1c; color: #fff; border-color: #7f1d1d; animation: alarm-pulse 1s ease-in-out infinite alternate; }
+.alarm-item.sev-reminder { background: var(--accent-soft); border-color: var(--accent); }
+.alarm-item .row button { background: #fff; color: #111; border-color: #111; }
+@keyframes alarm-pulse { from { background: #b91c1c; } to { background: #7f1d1d; } }
+@media (prefers-reduced-motion: reduce) { .alarm-item.sev-critical { animation: none; } }
+.notice { background: #dbeafe; }
+.alarm-sec { border-top: 1px solid var(--accent-soft); padding-top: 8px; margin-top: 8px; }
+.alarm-sec h3 { margin: 4px 0 8px; font-size: 1rem; }
+.alarm-status { padding: 6px 8px; border-radius: 6px; background: var(--accent-soft); color: #111; }
+.alarm-status.status-install, .alarm-status.status-blocked, .alarm-status.status-unsupported { background: #fde68a; }
+.rule-list { list-style: none; padding: 0; margin: 0 0 8px; }
+.rule-list li { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--accent-soft); }
+.rule-form label, .alarm-sec > label { display: block; margin: 8px 0; }
+.rule-form select, .rule-form input[type="number"] { width: 100%; padding: 6px; font: inherit; }
+.rule-form .inline { display: flex; gap: 6px; align-items: center; }
+.risk-row.focused { outline: 3px solid var(--alert); outline-offset: 2px; border-radius: 6px; }

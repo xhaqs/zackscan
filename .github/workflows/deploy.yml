@@ -77,10 +77,12 @@ jobs:
         env:
           PLATFORM_GEMINI_KEY: ${{ secrets.PLATFORM_GEMINI_KEY }}
           FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
         run: |
           node -e '
-            const names = ["PLATFORM_GEMINI_KEY", "FIRMS_MAP_KEY", "OPENAQ_API_KEY"];
+            const names = ["PLATFORM_GEMINI_KEY", "FIRMS_MAP_KEY", "OPENAQ_API_KEY", "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"];
             const set = Object.fromEntries(names.filter((n) => process.env[n]).map((n) => [n, process.env[n].trim()]));
             for (const n of names) if (!set[n]) console.log("::warning::" + n + " not set; that feature stays off.");
             require("fs").writeFileSync("secrets.json", JSON.stringify(set));
@@ -117,6 +119,10 @@ jobs:
               console.log("Risk matrix OK, " + live + " region(s) already scored.");
             });
           ' || exit 1
+          # Alerts: the VAPID public key is served when push is configured.
+          if [ -n "${{ secrets.VAPID_PUBLIC_KEY }}" ]; then
+            curl -fsS "$URL/api/alerts/key" | grep -q publicKey || { echo "::error::push keys not live"; exit 1; }
+          fi
           # Offline support: service worker is this build, manifest serves.
           curl -fsS "$URL/sw.js" | grep -q "${GITHUB_SHA::12}" || { echo "::error::sw.js is not this build"; exit 1; }
           curl -fsS -o /dev/null "$URL/manifest.webmanifest" || { echo "::error::manifest missing"; exit 1; }

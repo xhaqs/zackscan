@@ -65,7 +65,7 @@ function row(r, open, saved) {
   </details></li>`;
 }
 
-export function startRiskPanel(el, { onStatus = () => {} } = {}) {
+export function startRiskPanel(el, { onStatus = () => {}, onMatrix = () => {} } = {}) {
   let shown = null; // what's on screen, to redraw ages and keep open rows open
 
   function render(matrix, source) {
@@ -88,6 +88,7 @@ export function startRiskPanel(el, { onStatus = () => {} } = {}) {
       await saveSnapshot(key, m);
       await rememberPillars(m);
       render(mergeLastGood(m, await lastGoodPillars()), { live: true, fetchedAt: Date.now(), summary });
+      onMatrix(m); // fresh data only: alarms never fire on saved offline data
     } catch (e) {
       await showSaved(e);
       throw e; // tell the poller, so it backs off

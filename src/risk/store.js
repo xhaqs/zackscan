@@ -20,6 +20,22 @@ export function makeStore(env) {
       if (kv) return kv.put(key, JSON.stringify(value), { expirationTtl: Math.max(60, keepSeconds) });
       memory.set(key, { value, until: Date.now() + keepSeconds * 1000 });
     },
+    async delete(key) {
+      if (kv) return kv.delete(key);
+      memory.delete(key);
+    },
+    /** All keys with this prefix (up to `max`). */
+    async list(prefix, max = 1000) {
+      if (!kv) return [...memory.entries()].filter(([k, v]) => k.startsWith(prefix) && v.until > Date.now()).map(([k]) => k).slice(0, max);
+      const keys = [];
+      let cursor;
+      do {
+        const page = await kv.list({ prefix, cursor, limit: Math.min(1000, max - keys.length) });
+        keys.push(...page.keys.map((k) => k.name));
+        cursor = page.list_complete ? null : page.cursor;
+      } while (cursor && keys.length < max);
+      return keys;
+    },
   };
 }
 

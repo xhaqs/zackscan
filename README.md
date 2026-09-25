@@ -131,3 +131,22 @@ Every AI assessment comes in two registers, generated together in **one** LLM ca
 The prompt carries the instructions for both registers, each aimed at its own field of a strict JSON schema. Your preferred tier (**Settings → AI assessments open in**) only picks which view opens first. It isn't part of the prompt, so it never changes the result or the cache key. The toggle above each assessment switches views instantly from the stored result, with no network call, and works offline.
 
 **Regenerate only when the data changes:** the server fingerprints exactly what the prompt is built from: prompt version, profile, the events (id, time, magnitude, updates) and the risk-matrix values (not their timestamps). The client sends the fingerprint of the assessment it holds, and if nothing changed the answer is `{unchanged: true}`, with no LLM call, no key check and no shared-tier allowance used. Shared-tier results are also cached in KV by fingerprint for 6 h, so visitors share one generation.
+
+## Alarms and alerts
+
+**Rules** (`public/js/alarm-rules.js`) are shared by the page and the Worker, so both fire on exactly the same conditions:
+- The built-in **critical alarm** fires when any region's overall risk goes above 85. It can be switched off, not edited.
+- **Custom rules** can use any risk score, the largest quake magnitude, heat above normal (σ), peak wet-bulb °C, PM2.5 µg/m³ or active fire count, for any region or one region. They can be an *alarm* (once, when the value crosses the threshold) or a *reminder* (repeats every 1–24 h until acknowledged).
+- Alerts are edge-triggered with hysteresis: no repeats while a value stays high, and a rule re-arms only once the value falls about 3% below its threshold. Missing data never counts as "below".
+
+**While Zackscan is open** (`alarms.js`, `alarm-audio.js`): every fresh risk update is checked. An alert shows a banner with **Acknowledge** and **View SitRep**, and plays a synthesized sound (no audio files). Critical alerts get a looping 960/770 Hz siren (up to 60 s); alarms get three beeps; reminders get a chime. It also vibrates on Android and shows a notification if the tab is in the background. An alarm closes any open dialog, because a modal dialog would make the banner impossible to tap. Browsers allow sound only after the first tap on the page. On Safari 17+ the audio session is set to `playback`, so alarms sound even with the silent switch on.
+
+**While it's closed** (Web Push): **🔔 Alarms → Turn on background alerts** subscribes the device and syncs its rules. After each risk refresh (every 10 min), the cron checks every device's rules and sends a push (`src/routes/alerts.js`, `src/push/webpush.js`: aes128gcm + VAPID, WebCrypto only, allow-listed push hosts). The service worker shows it with **View SitRep** / **Acknowledge** buttons. Critical alerts stay on screen until acted on, and Acknowledge stops reminders on the server too. Notification tags are `rule:region`, so the page's own notification and the push never stack. Dead subscriptions (404/410) are deleted. Records expire after 90 days without the app being opened.
+
+**Platform limits, stated rather than failing silently** (`platform.js`):
+- iPhone/iPad: push works only from the Home Screen app, on iOS 16.4+. Safari tabs get a one-time notice explaining how to add it.
+- In-app browsers (WhatsApp, Facebook…) have no push, so they're told to open Chrome/Safari.
+- Blocked notifications are explained, along with how to unblock them.
+- iOS has no vibration.
+
+**Keys:** `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` are GitHub secrets that CI sets on the Worker. For local dev they go in `.dev.vars` (gitignored).

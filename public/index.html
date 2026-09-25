@@ -17,8 +17,11 @@
     <label>Mission
       <select id="profile" aria-label="Mission profile"></select>
     </label>
+    <button id="open-alarms" type="button">🔔 Alarms</button>
     <button id="open-settings" type="button">⚙ Settings</button>
   </header>
+  <div id="alarm-banner" class="alarm-banner" aria-live="assertive" hidden></div>
+  <div id="alert-notice" class="net-status notice" role="status" hidden></div>
   <div id="net-status" class="net-status" role="status" aria-live="polite" hidden></div>
   <div id="update-bar" class="net-status" hidden>A new version of Zackscan is ready. <button id="update-now" type="button">Update</button></div>
 
@@ -74,6 +77,10 @@
         <button type="button" id="settings-close">Close</button>
       </div>
     </form>
+  </dialog>
+  <dialog id="alarms" aria-label="Alarm settings">
+    <div id="alarms-body"></div>
+    <div class="row"><button type="button" id="alarms-close">Close</button></div>
   </dialog>
 </body>
 </html>

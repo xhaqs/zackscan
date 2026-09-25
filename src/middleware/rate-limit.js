@@ -6,11 +6,14 @@
 const DAY_S = 86_400;
 const memory = new Map();
 
-export async function checkRateLimit(request, env) {
-  const max = Number(env.PLATFORM_DAILY_LIMIT) || 10;
+/**
+ * @param name  counter name, so different actions have separate allowances
+ * @param max   daily limit (defaults to the platform AI allowance)
+ */
+export async function checkRateLimit(request, env, { name = "rl", max = Number(env.PLATFORM_DAILY_LIMIT) || 10 } = {}) {
   const ip = request.headers.get("CF-Connecting-IP") || "local";
   const day = new Date().toISOString().slice(0, 10);
-  const key = `rl:${day}:${await hashIp(ip)}`;
+  const key = `${name}:${day}:${await hashIp(ip)}`;
   const retryAfter = DAY_S - (Math.floor(Date.now() / 1000) % DAY_S);
 
   let used;

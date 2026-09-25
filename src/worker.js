@@ -13,6 +13,7 @@ import { json } from "./http.js";
 import { getMatrix, refreshStalest, summarizeMatrix, matrixVersion } from "./risk/matrix.js";
 import { jsonWithEtag } from "./etag.js";
 import { makeStore } from "./risk/store.js";
+import { handleAlerts, runAlertSweep } from "./routes/alerts.js";
 import { getRegion } from "./risk/regions.js";
 
 const MAX_BODY = 4 * 1024;
@@ -38,7 +39,16 @@ export default {
 
     if (route === "GET /api/health") {
       const cron = await makeStore(env).get("cron:last");
-      return json({ ok: true, cron: cron || { state: "never run" }, keys: { firms: !!env.FIRMS_MAP_KEY, openaq: !!env.OPENAQ_API_KEY, platformAi: !!env.PLATFORM_GEMINI_KEY } });
+      return json({
+        ok: true,
+        cron: cron || { state: "never run" },
+        keys: { firms: !!env.FIRMS_MAP_KEY, openaq: !!env.OPENAQ_API_KEY, platformAi: !!env.PLATFORM_GEMINI_KEY, push: !!(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) },
+      });
+    }
+
+    if (url.pathname.startsWith("/api/alerts/")) {
+      const res = await handleAlerts(route, request, env);
+      return res || json({ error: "Not found.", code: "not_found" }, 404);
     }
 
     if (route === "GET /api/risk") {
@@ -72,7 +82,9 @@ export default {
         await store.put("cron:last", { startedAt, cron: event.cron, state: "running" });
         try {
           const refreshed = await refreshStalest(env, { store });
-          await store.put("cron:last", { startedAt, finishedAt: new Date().toISOString(), cron: event.cron, state: "ok", refreshed });
+          // Then check every device's alarm rules against the fresh data.
+          const alerts = await runAlertSweep(env, { store }).catch((e) => ({ error: String(e?.message || e) }));
+          await store.put("cron:last", { startedAt, finishedAt: new Date().toISOString(), cron: event.cron, state: "ok", refreshed, alerts });
         } catch (e) {
           await store.put("cron:last", { startedAt, finishedAt: new Date().toISOString(), cron: event.cron, state: "error", error: String(e?.message || e) });
         }

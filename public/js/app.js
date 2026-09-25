@@ -7,6 +7,8 @@ import { dataSaverOn } from "./poller.js";
 import { saveSitrep, loadSitrep } from "./offline-store.js";
 import { ageLabel } from "./offline-logic.js";
 import { renderTieredAssessment, preferredTier, setPreferredTier, isTiered } from "./tier-toggle.js";
+import { createAlarmController } from "./alarms.js";
+import { renderAlarmSettings } from "./alarm-settings.js";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -40,7 +42,47 @@ addEventListener("online", renderNet);
 addEventListener("offline", renderNet);
 setInterval(renderNet, 30_000);
 
+// ------------------------------------------------------------ alarms
+const alarms = createAlarmController({ banner: $("#alarm-banner"), onView: (a) => focusRegion(a.regionId) });
+
+/** Open a region's row in the risk matrix and bring it into view ("View SitRep"). */
+function focusRegion(id, tries = 40) {
+  const row = id && document.querySelector(`#risk [data-region="${CSS.escape(id)}"]`);
+  if (!row) return tries > 0 && setTimeout(() => focusRegion(id, tries - 1), 250);
+  row.querySelector("details").open = true;
+  row.scrollIntoView({ behavior: "smooth", block: "start" });
+  row.classList.add("focused");
+  setTimeout(() => row.classList.remove("focused"), 4000);
+}
+// Opened from a notification: /?focus=<region>
+const focusParam = new URLSearchParams(location.search).get("focus");
+if (focusParam) {
+  focusRegion(focusParam);
+  history.replaceState(null, "", location.pathname + location.hash);
+}
+
+let health = null;
+$("#open-alarms").addEventListener("click", async () => {
+  health ||= await fetch("/api/health", { cache: "no-cache" }).then((r) => r.json()).catch(() => null);
+  await renderAlarmSettings($("#alarms-body"), alarms, health);
+  $("#alarms").showModal();
+});
+$("#alarms-close").addEventListener("click", () => $("#alarms").close());
+
+// Once per device: say plainly when background alerts can't be relied on here.
+const notice = alarms.noticeOnce();
+if (notice) {
+  const el = $("#alert-notice");
+  el.innerHTML = `<b>Alerts on this device:</b> ${esc(notice.message)} <button type="button">Got it</button>`;
+  el.hidden = false;
+  el.querySelector("button").addEventListener("click", () => {
+    notice.dismiss();
+    el.hidden = true;
+  });
+}
+
 startRiskPanel($("#risk"), {
+  onMatrix: (m) => alarms.onMatrix(m),
   onStatus: (s) => {
     net.risk = s;
     renderNet();

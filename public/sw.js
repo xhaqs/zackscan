@@ -28,6 +28,12 @@ const SHELL_FILES = [
   "/js/offline-store.js",
   "/js/poller.js",
   "/js/tier-toggle.js",
+  "/js/alarm-rules.js",
+  "/js/alarm-audio.js",
+  "/js/alarm-settings.js",
+  "/js/alarms.js",
+  "/js/platform.js",
+  "/js/regions.js",
   "/favicon.svg",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
@@ -117,6 +123,85 @@ async function refreshRisk() {
   const data = await res.json();
   await idbPut("snapshots", { key: "risk:summary", data, fetchedAt: Date.now() });
   for (const client of await self.clients.matchAll({ type: "window" })) client.postMessage({ type: "risk-updated" });
+}
+
+// ------------------------------------------------------------ alerts (Web Push)
+// Payload from the Worker (src/routes/alerts.js):
+//   {title, body, severity: "critical"|"alarm"|"reminder", tag, alertKey, url, at, test?}
+// Critical alerts stay on screen until the user acts (requireInteraction).
+// Tags are "rule:region", the same as the page uses, so an alert shown by an
+// open page and by a push replaces itself instead of stacking up.
+
+function alertNotificationOptions(a) {
+  const critical = a.severity === "critical";
+  return {
+    body: a.body || "",
+    tag: a.tag || a.alertKey || "zackscan",
+    renotify: true,
+    requireInteraction: critical,
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    vibrate: critical ? [700, 200, 700, 200, 700] : [300, 150, 300],
+    timestamp: a.at || Date.now(),
+    data: { url: a.url || "/", alertKey: a.alertKey || a.tag, severity: a.severity },
+    actions: [
+      { action: "view", title: "View SitRep" },
+      { action: "ack", title: "Acknowledge" },
+    ],
+  };
+}
+
+self.addEventListener("push", (event) => {
+  let a;
+  try {
+    a = event.data ? event.data.json() : {};
+  } catch {
+    a = { title: "Zackscan alert", body: event.data ? event.data.text() : "" };
+  }
+  event.waitUntil(
+    (async () => {
+      // Always show a notification: browsers require it for every push, and a
+      // silent failure is the worst outcome for a safety alert.
+      await self.registration.showNotification(a.title || "Zackscan alert", alertNotificationOptions(a));
+      // An open page sounds the alarm (a service worker can't play audio).
+      for (const c of await self.clients.matchAll({ type: "window", includeUncontrolled: true })) c.postMessage({ type: "alarm", alert: { ...a, key: a.alertKey || a.tag } });
+    })(),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  const n = event.notification;
+  const { url = "/", alertKey } = n.data || {};
+  n.close();
+  if (event.action === "ack") {
+    event.waitUntil(acknowledgeAlert(alertKey));
+    return;
+  }
+  // "View SitRep" or a tap on the notification body: open (or focus) the app on that region.
+  event.waitUntil(
+    (async () => {
+      const target = new URL(url, self.location.origin).href;
+      for (const c of await self.clients.matchAll({ type: "window", includeUncontrolled: true })) {
+        if (new URL(c.url).origin === self.location.origin) {
+          await c.focus();
+          return c.navigate ? c.navigate(target) : undefined;
+        }
+      }
+      return self.clients.openWindow(target);
+    })(),
+  );
+});
+
+async function acknowledgeAlert(key) {
+  if (!key || key === "test") return;
+  for (const c of await self.clients.matchAll({ type: "window", includeUncontrolled: true })) c.postMessage({ type: "alarm-ack", key });
+  const sub = await self.registration.pushManager.getSubscription();
+  if (!sub) return;
+  await fetch("/api/alerts/ack", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ endpoint: sub.endpoint, key }),
+  }).catch(() => {});
 }
 
 function fetchWithTimeout(req, ms) {
