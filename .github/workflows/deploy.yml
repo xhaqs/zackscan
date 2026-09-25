@@ -57,6 +57,12 @@ jobs:
       - name: Find or create KV namespaces
         run: node scripts/ensure-kv.mjs
 
+      - name: Stamp the service worker with this build
+        # A new sw.js on every deploy makes browsers install it and drop old caches.
+        run: |
+          sed -i "s/__BUILD__/${GITHUB_SHA::12}/" public/sw.js
+          grep -q "${GITHUB_SHA::12}" public/sw.js
+
       - name: Deploy
         id: deploy
         run: |
@@ -115,8 +121,7 @@ jobs:
           curl -fsS "$URL/sw.js" | grep -q "${GITHUB_SHA::12}" || { echo "::error::sw.js is not this build"; exit 1; }
           curl -fsS -o /dev/null "$URL/manifest.webmanifest" || { echo "::error::manifest missing"; exit 1; }
           # Bandwidth: unchanged data answers 304; the summary is much smaller.
-          TAG=$(curl -fsS -D - -o /dev/null "$URL/api/risk" | tr -d '
-' | awk -F': ' 'tolower($1)=="etag"{print $2}')
+          TAG=$(curl -fsS -D - -o /dev/null "$URL/api/risk" | tr -d '\r' | awk -F': ' 'tolower($1)=="etag"{print $2}')
           CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "If-None-Match: $TAG" "$URL/api/risk")
           [ -n "$TAG" ] && [ "$CODE" = "304" ] || { echo "::error::ETag revalidation failed (tag '$TAG', got $CODE)"; exit 1; }
           FULL=$(curl -fsS "$URL/api/risk" | wc -c); SUM=$(curl -fsS "$URL/api/risk?fields=summary" | wc -c)
