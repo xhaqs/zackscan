@@ -2,6 +2,9 @@ import { createMissionState } from "./state.js";
 import { KeyVault } from "./keyvault.js";
 import { api } from "./api.js";
 import { AI_PROVIDERS } from "./ai-catalog.js";
+import { startRiskPanel } from "./risk.js";
+
+startRiskPanel(document.querySelector("#risk"));
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);

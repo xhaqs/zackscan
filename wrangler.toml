@@ -10,11 +10,25 @@ run_worker_first = ["/api/*"]
 [vars]
 # Free platform-tier AI calls per visitor IP per day.
 PLATFORM_DAILY_LIMIT = "10"
+# NASA FIRMS satellite source for fire detections.
+FIRMS_SOURCE = "VIIRS_NOAA20_NRT"
 
-# Secrets (set with `wrangler secret put`, never committed):
-#   PLATFORM_GEMINI_KEY  platform-tier Gemini key; without it only BYOK works
-#
-# Before going public, create the KV namespace for the rate limiter and uncomment:
-# [[kv_namespaces]]
-# binding = "RATE_LIMIT"
-# id = "<from: wrangler kv namespace create RATE_LIMIT>"
+# Keep the risk matrix warm: each run refreshes the 3 stalest regions.
+[triggers]
+crons = ["*/10 * * * *"]
+
+# KV namespaces. CI (scripts/ensure-kv.mjs) finds or creates
+# "zackscan-RISK_CACHE" / "zackscan-RATE_LIMIT" and fills in the ids before
+# each deploy. Locally, wrangler dev simulates them with these placeholders.
+[[kv_namespaces]]
+binding = "RISK_CACHE"
+id = "__RISK_CACHE_ID__"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "__RATE_LIMIT_ID__"
+
+# Secrets (set by CI from GitHub repo secrets, never committed). All optional:
+#   PLATFORM_GEMINI_KEY  shared AI tier; without it only BYOK works
+#   FIRMS_MAP_KEY        NASA FIRMS fire detections (free key)
+#   OPENAQ_API_KEY       OpenAQ PM2.5 (free key)

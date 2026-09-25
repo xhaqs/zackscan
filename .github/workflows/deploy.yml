@@ -54,6 +54,9 @@ jobs:
           fi
           echo "Cloudflare token is active."
 
+      - name: Find or create KV namespaces
+        run: node scripts/ensure-kv.mjs
+
       - name: Deploy
         id: deploy
         run: |
@@ -62,18 +65,23 @@ jobs:
           URL=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.log | head -1)
           echo "url=$URL" >> "$GITHUB_OUTPUT"
 
-      # `wrangler secret put` on a deployed Worker takes effect immediately
-      # (unlike `versions secret put`, which needs a separate promote step).
-      # An empty repo secret is skipped so it never blanks the live value.
-      - name: Set platform Gemini key
+      # One bulk upload = one new version, live immediately. Empty repo
+      # secrets are left out, so they never blank a live value.
+      - name: Set optional secrets
         env:
           PLATFORM_GEMINI_KEY: ${{ secrets.PLATFORM_GEMINI_KEY }}
+          FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
+          OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
         run: |
-          if [ -z "$PLATFORM_GEMINI_KEY" ]; then
-            echo "::warning::PLATFORM_GEMINI_KEY not set: the shared AI tier stays off (BYOK still works)."
-            exit 0
-          fi
-          echo "$PLATFORM_GEMINI_KEY" | npx wrangler secret put PLATFORM_GEMINI_KEY
+          node -e '
+            const names = ["PLATFORM_GEMINI_KEY", "FIRMS_MAP_KEY", "OPENAQ_API_KEY"];
+            const set = Object.fromEntries(names.filter((n) => process.env[n]).map((n) => [n, process.env[n].trim()]));
+            for (const n of names) if (!set[n]) console.log("::warning::" + n + " not set; that feature stays off.");
+            require("fs").writeFileSync("secrets.json", JSON.stringify(set));
+            console.log("Setting:", Object.keys(set).join(", ") || "none");
+          '
+          if [ "$(cat secrets.json)" != "{}" ]; then npx wrangler secret bulk secrets.json; fi
+          rm -f secrets.json
 
       - name: Smoke test the live Worker
         env:
@@ -90,4 +98,17 @@ jobs:
           CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$URL/api/analyze" \
             -H 'X-Custom-AI-Provider: gemini' -H 'X-Custom-AI-Key: bad' -d '{"profile":"general"}')
           [ "$CODE" = "400" ] || { echo "::error::Malformed BYOK key returned $CODE, expected 400"; exit 1; }
+          # Risk matrix: right schema, 6 regions, GLOF clearly marked as a stub.
+          curl -fsS --max-time 60 "$URL/api/risk" | node -e '
+            let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
+              const m = JSON.parse(s);
+              const bad = [];
+              if (m.schema !== "zackscan.risk-matrix/v1") bad.push("schema");
+              if (m.regions?.length !== 6) bad.push("regions");
+              for (const r of m.regions || []) if (r.pillars && (r.pillars.glof.realtime !== false || r.pillars.glof.score !== null || !/Non-Real-Time/.test(r.pillars.glof.label))) bad.push("glof:" + r.id);
+              const live = (m.regions || []).filter((r) => r.pillars?.seismic?.score != null).length;
+              if (bad.length) { console.log("::error::risk matrix check failed: " + bad.join(", ")); process.exit(1); }
+              console.log("Risk matrix OK, " + live + " region(s) already scored.");
+            });
+          ' || exit 1
           echo "Live at $URL"

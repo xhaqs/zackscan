@@ -52,3 +52,36 @@ dialog label { display: block; margin: 10px 0; }
 dialog input[type="password"], dialog select { width: 100%; padding: 6px; font: inherit; }
 dialog .check { display: flex; gap: 8px; align-items: center; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Risk matrix. Level is always written out too, never shown by colour alone. */
+:root {
+  --lvl-low: #1f7a3a; --lvl-guarded: #2563a8; --lvl-elevated: #a16207;
+  --lvl-high: #c2410c; --lvl-severe: #b91c1c; --lvl-unknown: #6b7280;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --lvl-low: #4ade80; --lvl-guarded: #60a5fa; --lvl-elevated: #facc15;
+    --lvl-high: #fb923c; --lvl-severe: #f87171; --lvl-unknown: #9ca3af;
+  }
+}
+@media (min-width: 800px) { section.wide { grid-column: 1 / -1; } }
+.risk-list { list-style: none; padding: 0; margin: 0; }
+.risk-row { border-bottom: 1px solid var(--accent-soft); padding: 8px 0; }
+.risk-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.chip {
+  display: inline-flex; align-items: baseline; gap: 6px; padding: 2px 8px; border-radius: 6px;
+  border: 2px solid var(--lvl-unknown); font-size: 0.85rem; font-weight: 400;
+}
+.chip b { font-size: 1rem; }
+.chip small { color: var(--muted); }
+.lvl-low { border-color: var(--lvl-low); } .lvl-guarded { border-color: var(--lvl-guarded); }
+.lvl-elevated { border-color: var(--lvl-elevated); } .lvl-high { border-color: var(--lvl-high); }
+.lvl-severe { border-color: var(--lvl-severe); } .lvl-unknown { border-color: var(--lvl-unknown); }
+.chip-stub { border-style: dashed; }
+.chip.overall { flex-shrink: 0; }
+.risk-detail { margin: 6px 0 0; padding-left: 18px; font-size: 0.9rem; overflow-wrap: anywhere; }
+.risk-detail .note { color: var(--muted); }
+
+/* The profile's light tint (set inline by state.js) must not override dark mode. */
+@media (prefers-color-scheme: dark) { body { background: #0f1211; } }

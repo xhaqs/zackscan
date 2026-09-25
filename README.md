@@ -70,3 +70,26 @@ npm run dev          # http://localhost:8787
 1. Create the rate-limit KV namespace (`wrangler kv namespace create RATE_LIMIT`) and uncomment it in `wrangler.toml`. Without it, the limit is kept per isolate and is easy to get around.
 2. Set `PLATFORM_GEMINI_KEY` with `wrangler secret put`. Give Zackscan its own key, not one shared with other apps.
 3. Zackscan uses public NASA and USGS data. Don't use agency names or logos in a way that suggests they endorse it.
+
+## Risk matrix (`GET /api/risk`)
+
+Each watchlist region (`src/risk/regions.js`) gets a 0–100 **Anomaly Risk Score** for four hazard types, plus an overall score (the highest live one). `?region=<id>` returns one region. The schema is `zackscan.risk-matrix/v1`.
+
+| Pillar | Status | Sources | Score |
+|---|---|---|---|
+| Seismic & Geological | live | USGS FDSN (no key) | max of: clustering (Poisson surprise of the 1-day and 7-day counts vs a 10-year baseline), magnitude anomaly (Gutenberg–Richter, b=1), severity (largest magnitude) |
+| Thermal & Wildfire | live | NASA FIRMS (**key**), Open-Meteo (no key), OpenAQ (**key**) | fire activity (detections, FRP) raised by fire weather (VPD, humidity, 24 h humidity drop, wind). With no fire detected, weather alone counts as potential and is capped at 40. PM2.5 AQI counts at half weight unless a fire is nearby |
+| Extreme Heat | live | Open-Meteo forecast + archive (no key) | max of: severity (hourly peak wet-bulb over the next 48 h, Stull 2011) and anomaly (z-score of daily Stull(Tmax, RHmin) vs the same ±7-day window over 10 years) |
+| Cryospheric & Hydrological (GLOF) | **stub** | none | never scored. Static reference lakes, labelled **Preliminary / Non-Real-Time** |
+
+Bands: 0–19 low, 20–39 guarded, 40–59 elevated, 60–79 high, 80–100 severe. Each pillar reports its components and a `status`: `live`, `partial` (some inputs missing), `stale` (a refresh failed, so it shows the last good data for up to 6 h), `error` or `stub`.
+
+**Caching:** region results are kept in KV for 20 minutes, and baselines for 7 days. A cron runs every 10 minutes and refreshes the 3 stalest regions. A request computes at most 2 missing regions and shows the rest as `pending`.
+
+**Setup (free keys, optional):**
+- `FIRMS_MAP_KEY`: from https://firms.modaps.eosdis.nasa.gov/api/map_key/ (limit: 5000 transactions per 10 min)
+- `OPENAQ_API_KEY`: from https://explore.openaq.org/register. OpenAQ v3 **requires** a key (limits: 60/min, 2000/h).
+
+Add them as GitHub repo secrets and CI pushes them to the Worker. Without them, those inputs show as off instead of being made up.
+
+**Licensing:** Open-Meteo's free API is for non-commercial use only. Commercial use, such as paid agency contracts, needs their paid plan.
