@@ -68,6 +68,8 @@ $("#open-alarms").addEventListener("click", async () => {
   $("#alarms").showModal();
 });
 $("#alarms-close").addEventListener("click", () => $("#alarms").close());
+// Pinned "✕ Close" at the top of every sheet: always reachable, however long the content.
+document.addEventListener("click", (e) => e.target.closest("[data-close]")?.closest("dialog")?.close());
 
 // Once per device: say plainly when background alerts can't be relied on here.
 const notice = alarms.noticeOnce();

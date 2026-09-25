@@ -23,7 +23,6 @@ export async function renderAlarmSettings(root, controller, health = null) {
   const serverPush = health?.keys?.push !== false;
 
   root.innerHTML = `
-    <h2>Alarms</h2>
     <section class="alarm-sec">
       <h3>Background alerts</h3>
       <p class="alarm-status status-${esc(pushOn ? "on" : ready.status)}" role="status">${esc(

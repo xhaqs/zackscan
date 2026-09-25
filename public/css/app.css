@@ -128,3 +128,17 @@ fieldset.tier-pref .check { align-items: flex-start; }
 .rule-form select, .rule-form input[type="number"] { width: 100%; padding: 6px; font: inherit; }
 .rule-form .inline { display: flex; gap: 6px; align-items: center; }
 .risk-row.focused { outline: 3px solid var(--alert); outline-offset: 2px; border-radius: 6px; }
+
+/* Dialogs as sheets: pinned header with Close, their own scroll area, never
+   taller than the visible screen (dvh follows the mobile browser toolbars).
+   Full-screen on phones, so no part can end up off screen. */
+dialog.sheet { padding: 0; overflow: hidden; max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); background: var(--surface); color: var(--text); }
+dialog.sheet[open] { display: flex; flex-direction: column; }
+.sheet-head { flex: none; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--accent-soft); }
+.sheet-head h2 { margin: 0; }
+.sheet-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 4px 16px 24px; }
+.sheet-body h3 { margin: 12px 0 6px; }
+body:has(dialog[open]) { overflow: hidden; }
+@media (max-width: 600px) {
+  dialog.sheet { inset: 0; margin: 0; width: 100vw; max-width: 100vw; height: 100vh; height: 100dvh; max-height: 100vh; max-height: 100dvh; border-radius: 0; }
+}
