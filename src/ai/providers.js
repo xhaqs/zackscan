@@ -9,6 +9,9 @@ const ANTHROPIC_BASE = "https://api.anthropic.com";
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
+// Tried in order when the shared tier's model is overloaded (separate capacity and quota per model).
+export const PLATFORM_GEMINI_FALLBACKS = ["gemini-3.8-flash", "gemini-3.5-flash-lite"];
+
 // What every provider must return: the same shape, whatever produced it.
 export const ASSESSMENT_SCHEMA = {
   type: "object",
@@ -42,7 +45,20 @@ export async function runAssessment(route, { system, prompt, schema = ASSESSMENT
   const fetchImpl = deps.fetch || fetch;
   const call = { anthropic: callAnthropic, gemini: callGemini, openai: callOpenAI }[route.provider];
   if (!call) throw new AiRouteError(400, "byok_provider_invalid", "Unknown AI provider.");
-  const text = await call(route, system, prompt, fetchImpl, schema, deps.retryDelayMs != null ? { retryDelayMs: deps.retryDelayMs } : undefined);
+  const opts = deps.retryDelayMs != null ? { retryDelayMs: deps.retryDelayMs } : undefined;
+  // Shared tier only: when Google says a model is overloaded, try the next
+  // one. A user's own key always gets the model they chose.
+  const models = route.tier === "platform" && route.provider === "gemini" ? [route.model, ...PLATFORM_GEMINI_FALLBACKS.filter((m) => m !== route.model)] : [route.model];
+  let text;
+  for (let i = 0; i < models.length; i++) {
+    try {
+      text = await call({ ...route, model: models[i] }, system, prompt, fetchImpl, schema, opts);
+      route.model = models[i]; // report the model that actually answered
+      break;
+    } catch (e) {
+      if (e.code !== "provider_busy" || i === models.length - 1) throw e;
+    }
+  }
   let parsed;
   try {
     parsed = JSON.parse(text);

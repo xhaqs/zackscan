@@ -228,7 +228,7 @@ test("Gemini: new auth keys (AQ.…) and older standard keys (AIza…) are both 
 test("Gemini overload (503): retried once; if it persists, Google's reason is shown (never the key)", async () => {
   let calls = 0;
   const busy = () => new Response(JSON.stringify({ error: { code: 503, message: "The model is overloaded. Please try again later.", status: "UNAVAILABLE" } }), { status: 503 });
-  const route = { tier: "platform", provider: "gemini", apiKey: GEMINI_KEY, model: "gemini-3.6-flash" };
+  const route = { tier: "byok", provider: "gemini", apiKey: GEMINI_KEY, model: "gemini-3.6-flash" }; // own key: no model fallback
   await assert.rejects(
     runAssessment(route, { system: "s", prompt: "p" }, { retryDelayMs: 0, fetch: async () => (calls++, busy()) }),
     (e) => e.code === "provider_busy" && /overloaded/.test(e.message) && !e.message.includes(GEMINI_KEY),
@@ -240,4 +240,24 @@ test("Gemini overload (503): retried once; if it persists, Google's reason is sh
     fetch: async () => (++calls === 1 ? busy() : Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(GOOD) }] } }] })),
   });
   assert.deepEqual(out, GOOD, "the retry succeeds");
+});
+
+test("shared tier falls back to another Gemini model when one is overloaded; own keys don't", async () => {
+  const seen = [];
+  const busyUnless = (ok) => async (url) => {
+    const model = String(url).match(/models\/([^:]+):/)[1];
+    seen.push(model);
+    return model === ok
+      ? Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(GOOD) }] } }] })
+      : new Response(JSON.stringify({ error: { code: 503, message: "high demand" } }), { status: 503 });
+  };
+  const platform = { tier: "platform", provider: "gemini", apiKey: GEMINI_KEY, model: "gemini-3.6-flash" };
+  assert.deepEqual(await runAssessment(platform, { system: "s", prompt: "p" }, { retryDelayMs: 0, fetch: busyUnless("gemini-3.8-flash") }), GOOD);
+  assert.deepEqual(seen, ["gemini-3.6-flash", "gemini-3.6-flash", "gemini-3.8-flash"]);
+  assert.equal(platform.model, "gemini-3.8-flash", "reports the model that answered");
+
+  seen.length = 0;
+  const byok = { tier: "byok", provider: "gemini", apiKey: GEMINI_KEY, model: "gemini-3.6-flash" };
+  await assert.rejects(runAssessment(byok, { system: "s", prompt: "p" }, { retryDelayMs: 0, fetch: busyUnless("gemini-3.8-flash") }), (e) => e.code === "provider_busy");
+  assert.deepEqual([...new Set(seen)], ["gemini-3.6-flash"], "the user's chosen model is kept");
 });
