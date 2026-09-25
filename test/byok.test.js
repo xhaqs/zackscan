@@ -210,3 +210,17 @@ test("OpenAI errors: bad key, no credit, refusal", async () => {
   await assert.rejects(run(() => Response.json({ error: { code: "insufficient_quota" } }, { status: 429 })), (e) => e.status === 429 && /out of credit/.test(e.message));
   await assert.rejects(run(() => Response.json({ choices: [{ message: { content: null, refusal: "no" } }] })), (e) => e.code === "ai_refused");
 });
+
+test("Gemini: new auth keys (AQ.…) and older standard keys (AIza…) are both accepted", async () => {
+  const aq = "AQ.Ab8RN6" + "x".repeat(40);
+  const r = await resolveAiRoute(req({ "X-Custom-AI-Key": aq, "X-Custom-AI-Provider": "gemini" }), {});
+  assert.equal(r.provider, "gemini");
+  assert.equal((await resolveAiRoute(req({ "X-Custom-AI-Key": GEMINI_KEY, "X-Custom-AI-Provider": "gemini" }), {})).provider, "gemini");
+  await assert.rejects(resolveAiRoute(req({ "X-Custom-AI-Key": "AQ.short", "X-Custom-AI-Provider": "gemini" }), {}), (e) => e.code === "byok_key_malformed");
+  // The key goes in the same header either way.
+  let sent;
+  await runAssessment({ tier: "byok", provider: "gemini", apiKey: aq, model: "gemini-3.6-flash" }, { system: "s", prompt: "p" }, {
+    fetch: async (url, init) => ((sent = new Headers(init.headers).get("x-goog-api-key")), Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(GOOD) }] } }] })),
+  });
+  assert.equal(sent, aq);
+});

@@ -16,8 +16,10 @@ export const AI_PROVIDERS = Object.freeze({
   },
   gemini: {
     label: "Google Gemini",
-    keyHint: "starts with AIza",
-    keyPattern: /^AIza[A-Za-z0-9_-]{30,60}$/,
+    keyHint: "starts with AQ. (older keys: AIza)",
+    // Since 28 May 2026 AI Studio issues "auth keys" (AQ.…). Older "standard"
+    // keys (AIza…) are being phased out during 2026 but still work while restricted.
+    keyPattern: /^(?:AQ.[A-Za-z0-9_.-]{20,400}|AIza[A-Za-z0-9_-]{30,60})$/,
     defaultModel: "gemini-3.6-flash",
     models: [
       { id: "gemini-3.6-flash", label: "Gemini 3.6 Flash" },
