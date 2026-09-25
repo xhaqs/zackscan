@@ -1,6 +1,7 @@
 import { createMissionState } from "./state.js";
 import { KeyVault } from "./keyvault.js";
 import { api } from "./api.js";
+import { AI_PROVIDERS } from "./ai-catalog.js";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -57,17 +58,41 @@ $("#analyze").addEventListener("click", async () => {
   }
 });
 
-// Settings: bring your own key
+// Settings: bring your own key (any listed provider and model)
+const provSel = $("#key-provider");
+const modelSel = $("#key-model");
+provSel.innerHTML = Object.entries(AI_PROVIDERS).map(([id, p]) => `<option value="${id}">${esc(p.label)}</option>`).join("");
+
+function fillModels(provider, selected) {
+  const p = AI_PROVIDERS[provider];
+  modelSel.innerHTML = p.models.map((m) => `<option value="${m.id}">${esc(m.label)}</option>`).join("");
+  modelSel.value = selected || p.defaultModel;
+  $("#key-hint").textContent = "(" + p.keyHint + ")";
+}
+provSel.addEventListener("change", () => fillModels(provSel.value));
+
 function renderKey() {
   const m = KeyVault.masked();
   const where = { tab: "until this tab closes", device: "on this device", memory: "until the page reloads" }[KeyVault.where()];
-  $("#key-state").textContent = m ? `Using your ${m.provider} key ${m.hint}, kept ${where}.` : "No key set. AI uses the shared tier with a daily limit.";
+  $("#key-state").textContent = m
+    ? `Using your ${m.providerLabel} key ${m.hint} with ${m.modelLabel}, kept ${where}.`
+    : "No key set. AI uses the shared tier with a daily limit.";
   $("#key-clear").hidden = !m;
+  $("#key-remember").checked = KeyVault.where() === "device";
+  provSel.value = m ? m.provider : provSel.value || "gemini";
+  fillModels(provSel.value, m?.model);
+  $("#key-input").placeholder = m && m.provider === provSel.value ? "Leave empty to keep your saved key" : "";
 }
 $("#open-settings").addEventListener("click", () => $("#settings").showModal());
+$("#settings-close").addEventListener("click", () => $("#settings").close());
 $("#key-form").addEventListener("submit", (ev) => {
   ev.preventDefault();
-  const r = KeyVault.save($("#key-provider").value, $("#key-input").value, { remember: $("#key-remember").checked });
+  const key = $("#key-input").value.trim();
+  const saved = KeyVault.masked();
+  let r;
+  if (key) r = KeyVault.save(provSel.value, key, { remember: $("#key-remember").checked, model: modelSel.value });
+  else if (saved && saved.provider === provSel.value) r = KeyVault.setModel(modelSel.value); // just switching model
+  else r = { ok: false, error: `Paste your ${AI_PROVIDERS[provSel.value].label} API key.` };
   $("#key-error").textContent = r.ok ? "" : r.error;
   if (r.ok) {
     $("#key-input").value = "";

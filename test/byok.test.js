@@ -33,7 +33,7 @@ test("malformed, mismatched or half-sent keys are rejected, never downgraded to 
   for (const [headers, code] of [
     [{ "X-Custom-AI-Key": "nope", "X-Custom-AI-Provider": "gemini" }, "byok_key_malformed"],
     [{ "X-Custom-AI-Key": ANTHROPIC_KEY, "X-Custom-AI-Provider": "gemini" }, "byok_key_malformed"],
-    [{ "X-Custom-AI-Key": ANTHROPIC_KEY, "X-Custom-AI-Provider": "openai" }, "byok_provider_invalid"],
+    [{ "X-Custom-AI-Key": ANTHROPIC_KEY, "X-Custom-AI-Provider": "mistral" }, "byok_provider_invalid"],
     [{ "X-Custom-AI-Key": ANTHROPIC_KEY }, "byok_provider_invalid"],
     [{ "X-Custom-AI-Provider": "anthropic" }, "byok_key_malformed"],
   ]) {
@@ -162,4 +162,47 @@ test("worker: unknown profile and oversized bodies are refused", async () => {
     worker.fetch(new Request("https://zackscan.test/api/analyze", { method: "POST", body, headers: { "CF-Connecting-IP": "9.9.9.9" } }), env, {});
   assert.equal((await post(JSON.stringify({ profile: "../../etc" }))).status, 400);
   assert.equal((await post("x".repeat(5000))).status, 413);
+});
+
+const OPENAI_KEY = "sk-proj-" + "C".repeat(48);
+
+test("OpenAI keys route to OpenAI; an Anthropic key under OpenAI is caught", async () => {
+  const r = await resolveAiRoute(req({ "X-Custom-AI-Key": OPENAI_KEY, "X-Custom-AI-Provider": "openai" }), {});
+  assert.deepEqual([r.tier, r.provider, r.model], ["byok", "openai", "gpt-6-luna"]);
+  await assert.rejects(
+    resolveAiRoute(req({ "X-Custom-AI-Key": ANTHROPIC_KEY, "X-Custom-AI-Provider": "openai" }), {}),
+    (e) => e.code === "byok_key_malformed",
+  );
+});
+
+test("users can pick a listed model, and only a listed one", async () => {
+  const h = { "X-Custom-AI-Key": ANTHROPIC_KEY, "X-Custom-AI-Provider": "anthropic" };
+  assert.equal((await resolveAiRoute(req({ ...h, "X-Custom-AI-Model": "claude-opus-5" }), {})).model, "claude-opus-5");
+  assert.equal((await resolveAiRoute(req({ ...h, "X-Custom-AI-Model": "" }), {})).model, "claude-sonnet-5");
+  for (const bad of ["gpt-6-luna", "claude-3-opus", "../x"])
+    await assert.rejects(resolveAiRoute(req({ ...h, "X-Custom-AI-Model": bad }), {}), (e) => e.code === "byok_model_invalid" && e.status === 400);
+  // A model header alone is a half-sent BYOK request, not a platform request.
+  await assert.rejects(resolveAiRoute(req({ "X-Custom-AI-Model": "gemini-3.8-flash" }), { PLATFORM_GEMINI_KEY: GEMINI_KEY }), (e) => e.status === 400);
+});
+
+test("OpenAI: official host, Bearer key, strict JSON schema, chosen model", async () => {
+  let seen;
+  const fetch = async (url, init) => {
+    seen = { url: String(url), headers: headersOf(init), body: JSON.parse(init.body) };
+    return Response.json({ choices: [{ message: { role: "assistant", content: JSON.stringify(GOOD), refusal: null } }] });
+  };
+  const out = await runAssessment({ tier: "byok", provider: "openai", apiKey: OPENAI_KEY, model: "gpt-6-sol" }, { system: "s", prompt: "p" }, { fetch });
+  assert.deepEqual(out, GOOD);
+  assert.equal(new URL(seen.url).host, "api.openai.com");
+  assert.equal(seen.headers.authorization, "Bearer " + OPENAI_KEY);
+  assert.equal(seen.body.model, "gpt-6-sol");
+  assert.equal(seen.body.response_format.json_schema.strict, true);
+});
+
+test("OpenAI errors: bad key, no credit, refusal", async () => {
+  const route = { tier: "byok", provider: "openai", apiKey: OPENAI_KEY, model: "gpt-6-luna" };
+  const run = (reply) => runAssessment(route, { system: "s", prompt: "p" }, { fetch: async () => reply() });
+  await assert.rejects(run(() => Response.json({ error: { code: "invalid_api_key" } }, { status: 401 })), (e) => e.code === "byok_key_rejected" && !e.message.includes(OPENAI_KEY));
+  await assert.rejects(run(() => Response.json({ error: { code: "insufficient_quota" } }, { status: 429 })), (e) => e.status === 429 && /out of credit/.test(e.message));
+  await assert.rejects(run(() => Response.json({ choices: [{ message: { content: null, refusal: "no" } }] })), (e) => e.code === "ai_refused");
 });

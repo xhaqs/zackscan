@@ -3,14 +3,11 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { AiRouteError } from "../errors.js";
+import { AI_PROVIDERS as PROVIDERS } from "../../public/js/ai-catalog.js";
 
 const ANTHROPIC_BASE = "https://api.anthropic.com";
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
-
-export const PROVIDERS = Object.freeze({
-  anthropic: { label: "Anthropic", defaultModel: "claude-sonnet-5" },
-  gemini: { label: "Gemini", defaultModel: "gemini-3.6-flash" },
-});
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 // What every provider must return: the same shape, whatever produced it.
 export const ASSESSMENT_SCHEMA = {
@@ -43,10 +40,9 @@ export const ASSESSMENT_SCHEMA = {
  */
 export async function runAssessment(route, { system, prompt }, deps = {}) {
   const fetchImpl = deps.fetch || fetch;
-  const text =
-    route.provider === "anthropic"
-      ? await callAnthropic(route, system, prompt, fetchImpl)
-      : await callGemini(route, system, prompt, fetchImpl);
+  const call = { anthropic: callAnthropic, gemini: callGemini, openai: callOpenAI }[route.provider];
+  if (!call) throw new AiRouteError(400, "byok_provider_invalid", "Unknown AI provider.");
+  const text = await call(route, system, prompt, fetchImpl);
   let parsed;
   try {
     parsed = JSON.parse(text);
@@ -115,6 +111,37 @@ async function callGemini(route, system, prompt, fetchImpl) {
   const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("");
   if (!text) throw new AiRouteError(502, "ai_bad_output", "The AI returned no answer.");
   return text;
+}
+
+async function callOpenAI(route, system, prompt, fetchImpl) {
+  const res = await fetchImpl(OPENAI_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + route.apiKey },
+    body: JSON.stringify({
+      model: route.model,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: prompt },
+      ],
+      response_format: { type: "json_schema", json_schema: { name: "assessment", strict: true, schema: ASSESSMENT_SCHEMA } },
+      // GPT-6 models reason before answering, and that uses part of this budget.
+      max_completion_tokens: 16000,
+    }),
+  });
+  if (res.status === 401 || res.status === 403) throw keyRejected(route);
+  if (res.status === 429) {
+    // OpenAI uses 429 both for "slow down" and for "this account has no credit".
+    const body = await res.json().catch(() => ({}));
+    throw new AiRouteError(429, "provider_rate_limited", body?.error?.code === "insufficient_quota"
+      ? "Your OpenAI account is out of credit. Add billing on platform.openai.com, or use another key."
+      : "OpenAI is rate-limiting this key. Wait a minute and try again.");
+  }
+  if (!res.ok) throw new AiRouteError(502, "provider_error", `OpenAI returned an error (${res.status}).`);
+  const data = await res.json();
+  const msg = data?.choices?.[0]?.message;
+  if (msg?.refusal) throw new AiRouteError(422, "ai_refused", "The AI declined to assess this data.");
+  if (!msg?.content) throw new AiRouteError(502, "ai_bad_output", "The AI returned no answer.");
+  return msg.content;
 }
 
 function keyRejected(route) {

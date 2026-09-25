@@ -37,13 +37,13 @@
       <h2>Your AI key</h2>
       <p id="key-state"></p>
       <label>Provider
-        <select id="key-provider">
-          <option value="gemini">Gemini</option>
-          <option value="anthropic">Anthropic</option>
-        </select>
+        <select id="key-provider"></select>
       </label>
-      <label>API key
-        <input id="key-input" type="password" autocomplete="off" spellcheck="false" required>
+      <label>Model
+        <select id="key-model"></select>
+      </label>
+      <label>API key <small id="key-hint"></small>
+        <input id="key-input" type="password" autocomplete="off" spellcheck="false">
       </label>
       <label class="check"><input id="key-remember" type="checkbox"> Remember on this device</label>
       <p class="hint">Your key stays in this browser. Zackscan's server uses it for your request and never stores it.</p>
@@ -51,7 +51,7 @@
       <div class="row">
         <button type="submit">Save key</button>
         <button type="button" id="key-clear" hidden>Remove key</button>
-        <button type="submit" formmethod="dialog" formnovalidate>Close</button>
+        <button type="button" id="settings-close">Close</button>
       </div>
     </form>
   </dialog>

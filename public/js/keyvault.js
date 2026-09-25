@@ -9,12 +9,10 @@
 // the page ships a strict Content-Security-Policy (public/_headers) and loads
 // no third-party scripts.
 
+import { AI_PROVIDERS, isKnownModel } from "./ai-catalog.js";
+
 const SLOT = "zackscan.byok";
-export const PROVIDERS = ["anthropic", "gemini"];
-const SHAPES = {
-  anthropic: /^sk-ant-[A-Za-z0-9_-]{20,250}$/,
-  gemini: /^AIza[A-Za-z0-9_-]{30,60}$/,
-};
+const known = (p) => Object.hasOwn(AI_PROVIDERS, p);
 
 function store(kind) {
   try {
@@ -32,7 +30,10 @@ function read(s) {
   if (!s) return null;
   try {
     const v = JSON.parse(s.getItem(SLOT) || "null");
-    return v && PROVIDERS.includes(v.provider) && typeof v.key === "string" ? v : null;
+    if (!v || !known(v.provider) || typeof v.key !== "string") return null;
+    // A model dropped from the catalog since it was saved: keep the key, use the default.
+    if (!isKnownModel(v.provider, v.model)) v.model = AI_PROVIDERS[v.provider].defaultModel;
+    return v;
   } catch {
     return null;
   }
@@ -43,13 +44,15 @@ let memoryOnly = null;
 
 export const KeyVault = {
   /** Validate and save. Returns {ok} or {ok:false, error}. */
-  save(provider, key, { remember = false } = {}) {
+  save(provider, key, { remember = false, model } = {}) {
     key = String(key || "").trim();
-    if (!PROVIDERS.includes(provider)) return { ok: false, error: "Choose a provider." };
-    if (!SHAPES[provider].test(key))
-      return { ok: false, error: provider === "anthropic" ? "Anthropic keys start with sk-ant-." : "Gemini keys start with AIza." };
+    if (!known(provider)) return { ok: false, error: "Choose a provider." };
+    const p = AI_PROVIDERS[provider];
+    if (!p.keyPattern.test(key)) return { ok: false, error: `${p.label} keys: ${p.keyHint}.` };
+    model = model || p.defaultModel;
+    if (!isKnownModel(provider, model)) return { ok: false, error: "Choose a model from the list." };
     this.clear();
-    const entry = { provider, key, savedAt: Date.now() };
+    const entry = { provider, model, key, savedAt: Date.now() };
     const s = store(remember ? "local" : "session");
     if (s) {
       try {
@@ -59,6 +62,13 @@ export const KeyVault = {
     }
     memoryOnly = entry;
     return { ok: true, where: "memory" };
+  },
+
+  /** Change the model for the saved key, keeping where it's stored. */
+  setModel(model) {
+    const v = this.get();
+    if (!v || !isKnownModel(v.provider, model)) return { ok: false, error: "Choose a model from the list." };
+    return this.save(v.provider, v.key, { remember: this.where() === "device", model });
   },
 
   get() {
@@ -85,12 +95,20 @@ export const KeyVault = {
   /** Headers for an AI request: the user's key if set, else none (platform tier). */
   headers() {
     const v = this.get();
-    return v ? { "X-Custom-AI-Key": v.key, "X-Custom-AI-Provider": v.provider } : {};
+    return v ? { "X-Custom-AI-Key": v.key, "X-Custom-AI-Provider": v.provider, "X-Custom-AI-Model": v.model } : {};
   },
 
   /** A safe-to-display version, e.g. "sk-ant-…9fQ2". */
   masked() {
     const v = this.get();
-    return v ? { provider: v.provider, hint: v.key.slice(0, 7) + "…" + v.key.slice(-4) } : null;
+    if (!v) return null;
+    const p = AI_PROVIDERS[v.provider];
+    return {
+      provider: v.provider,
+      providerLabel: p.label,
+      model: v.model,
+      modelLabel: p.models.find((m) => m.id === v.model)?.label || v.model,
+      hint: v.key.slice(0, 7) + "…" + v.key.slice(-4),
+    };
   },
 };

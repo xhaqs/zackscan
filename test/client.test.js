@@ -24,7 +24,7 @@ beforeEach(() => {
 test("keys go to sessionStorage unless the user asks to remember", () => {
   assert.equal(KeyVault.save("gemini", GEMINI_KEY).where, "tab");
   assert.equal(window.localStorage.getItem("zackscan.byok"), null);
-  assert.deepEqual(KeyVault.headers(), { "X-Custom-AI-Key": GEMINI_KEY, "X-Custom-AI-Provider": "gemini" });
+  assert.deepEqual(KeyVault.headers(), { "X-Custom-AI-Key": GEMINI_KEY, "X-Custom-AI-Provider": "gemini", "X-Custom-AI-Model": "gemini-3.6-flash" });
 
   assert.equal(KeyVault.save("anthropic", ANTHROPIC_KEY, { remember: true }).where, "device");
   assert.equal(window.sessionStorage.getItem("zackscan.byok"), null, "saving one place clears the other");
@@ -65,4 +65,18 @@ test("every profile is complete and only uses the allowed feed hosts", () => {
   }
   assert.equal(getProfile("__proto__"), null);
   assert.equal(getProfile("constructor"), null);
+});
+
+test("the chosen model is saved, sent, and can be changed without re-entering the key", () => {
+  KeyVault.save("openai", "sk-proj-" + "C".repeat(48), { remember: true, model: "gpt-6-astra" });
+  assert.equal(KeyVault.headers()["X-Custom-AI-Model"], "gpt-6-astra");
+  assert.equal(KeyVault.save("openai", "sk-proj-" + "C".repeat(48), { model: "claude-opus-5" }).ok, false, "model must belong to the provider");
+  assert.equal(KeyVault.setModel("gpt-6-luna").ok, true);
+  assert.equal(KeyVault.get().model, "gpt-6-luna");
+  assert.equal(KeyVault.where(), "device", "switching model keeps where the key is stored");
+});
+
+test("a saved model that's no longer offered falls back to the default", () => {
+  window.sessionStorage.setItem("zackscan.byok", JSON.stringify({ provider: "gemini", model: "gemini-1.5-flash", key: GEMINI_KEY }));
+  assert.equal(KeyVault.get().model, "gemini-3.6-flash");
 });
