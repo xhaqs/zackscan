@@ -121,7 +121,9 @@ jobs:
           ' || exit 1
           # Alerts: the VAPID public key is served when push is configured.
           if [ -n "${{ secrets.VAPID_PUBLIC_KEY }}" ]; then
-            curl -fsS "$URL/api/alerts/key" | grep -q publicKey || { echo "::error::push keys not live"; exit 1; }
+            # Secrets take a few seconds to reach every edge location after `secret bulk`.
+            for i in $(seq 1 12); do curl -fsS "$URL/api/alerts/key" | grep -q publicKey && break; sleep 5; done
+            curl -fsS "$URL/api/alerts/key" | grep -q publicKey || { echo "::error::push keys not live after 60 s"; exit 1; }
           fi
           # Offline support: service worker is this build, manifest serves.
           curl -fsS "$URL/sw.js" | grep -q "${GITHUB_SHA::12}" || { echo "::error::sw.js is not this build"; exit 1; }
