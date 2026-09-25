@@ -14,8 +14,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -32,8 +32,8 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -45,10 +45,19 @@ jobs:
             echo "::error::Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in repo Settings > Secrets > Actions. Nothing was deployed."
             exit 1
           fi
+          # User-owned and account-owned tokens verify at different endpoints.
+          ok() { curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$1" | grep -q '"status":"active"'; }
+          if ! ok https://api.cloudflare.com/client/v4/user/tokens/verify && \
+             ! ok "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify"; then
+            echo "::error::Cloudflare rejected CLOUDFLARE_API_TOKEN (invalid, expired or revoked). Use an API *token* (My Profile > API Tokens, 'Edit Cloudflare Workers' template), not the Global API Key, and paste it with no spaces or line breaks."
+            exit 1
+          fi
+          echo "Cloudflare token is active."
 
       - name: Deploy
         id: deploy
         run: |
+          set -o pipefail   # without this, tee's success hides a failed deploy
           npx wrangler deploy | tee deploy.log
           URL=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.log | head -1)
           echo "url=$URL" >> "$GITHUB_OUTPUT"
@@ -70,7 +79,7 @@ jobs:
         env:
           URL: ${{ steps.deploy.outputs.url }}
         run: |
-          if [ -z "$URL" ]; then echo "::warning::No workers.dev URL in deploy output; skipping smoke test."; exit 0; fi
+          if [ -z "$URL" ]; then echo "::error::No workers.dev URL in the deploy output, so the live site can't be checked."; exit 1; fi
           for i in 1 2 3 4 5; do
             N=$(curl -fsS "$URL/api/profiles" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).profiles.length))' || echo 0)
             [ "$N" = "4" ] && break
