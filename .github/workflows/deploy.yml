@@ -1,0 +1,84 @@
+name: Test and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Build check
+        run: npx wrangler deploy --dry-run --outdir .wrangler/build
+
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Check Cloudflare credentials
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in repo Settings > Secrets > Actions. Nothing was deployed."
+            exit 1
+          fi
+
+      - name: Deploy
+        id: deploy
+        run: |
+          npx wrangler deploy | tee deploy.log
+          URL=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      # `wrangler secret put` on a deployed Worker takes effect immediately
+      # (unlike `versions secret put`, which needs a separate promote step).
+      # An empty repo secret is skipped so it never blanks the live value.
+      - name: Set platform Gemini key
+        env:
+          PLATFORM_GEMINI_KEY: ${{ secrets.PLATFORM_GEMINI_KEY }}
+        run: |
+          if [ -z "$PLATFORM_GEMINI_KEY" ]; then
+            echo "::warning::PLATFORM_GEMINI_KEY not set: the shared AI tier stays off (BYOK still works)."
+            exit 0
+          fi
+          echo "$PLATFORM_GEMINI_KEY" | npx wrangler secret put PLATFORM_GEMINI_KEY
+
+      - name: Smoke test the live Worker
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          if [ -z "$URL" ]; then echo "::warning::No workers.dev URL in deploy output; skipping smoke test."; exit 0; fi
+          for i in 1 2 3 4 5; do
+            N=$(curl -fsS "$URL/api/profiles" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).profiles.length))' || echo 0)
+            [ "$N" = "4" ] && break
+            sleep 5
+          done
+          [ "$N" = "4" ] || { echo "::error::$URL/api/profiles did not return 4 profiles"; exit 1; }
+          curl -fsS -o /dev/null "$URL/" || { echo "::error::Front page failed"; exit 1; }
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$URL/api/analyze" \
+            -H 'X-Custom-AI-Provider: gemini' -H 'X-Custom-AI-Key: bad' -d '{"profile":"general"}')
+          [ "$CODE" = "400" ] || { echo "::error::Malformed BYOK key returned $CODE, expected 400"; exit 1; }
+          echo "Live at $URL"

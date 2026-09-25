@@ -33,7 +33,7 @@ test/                   node --test
 - A malformed or rejected user key returns an error. It never falls back to the platform key.
 - The API sends no CORS headers, so other sites can't call it with a user's key.
 
-Anthropic calls use `claude-opus-5` with server-side refusal fallbacks (`fallbacks: "default"`) and structured JSON output. Gemini calls use `gemini-3.6-flash`.
+Anthropic calls use `claude-sonnet-5` with structured JSON output. A refusal comes back as a 422 `ai_refused`. Gemini calls use `gemini-3.6-flash`.
 
 ## Mission Profiles
 

@@ -20,7 +20,7 @@ test("user key routes to BYOK with that provider", async () => {
   const r = await resolveAiRoute(req({ "X-Custom-AI-Key": ANTHROPIC_KEY, "X-Custom-AI-Provider": "anthropic" }), {});
   assert.equal(r.tier, "byok");
   assert.equal(r.provider, "anthropic");
-  assert.equal(r.model, "claude-opus-5");
+  assert.equal(r.model, "claude-sonnet-5");
 });
 
 test("BYOK works even when the platform tier is missing or exhausted", async () => {
@@ -76,21 +76,21 @@ test("Gemini: key goes in a header to Google's host only, never in the URL", asy
   assert.equal(seen.body.generationConfig.responseMimeType, "application/json");
 });
 
-test("Anthropic: official host, fallbacks on, structured output, key in x-api-key", async () => {
+test("Anthropic: official host, Sonnet, structured output, key in x-api-key", async () => {
   let seen;
   const fetch = async (url, init) => {
     seen = { url: String(url), headers: headersOf(init), body: JSON.parse(init.body) };
     return Response.json({
-      id: "msg_1", type: "message", role: "assistant", model: "claude-opus-5", stop_reason: "end_turn",
+      id: "msg_1", type: "message", role: "assistant", model: "claude-sonnet-5", stop_reason: "end_turn",
       content: [{ type: "text", text: JSON.stringify(GOOD) }], usage: { input_tokens: 1, output_tokens: 1 },
     });
   };
-  const out = await runAssessment({ tier: "byok", provider: "anthropic", apiKey: ANTHROPIC_KEY, model: "claude-opus-5" }, { system: "s", prompt: "p" }, { fetch });
+  const out = await runAssessment({ tier: "byok", provider: "anthropic", apiKey: ANTHROPIC_KEY, model: "claude-sonnet-5" }, { system: "s", prompt: "p" }, { fetch });
   assert.deepEqual(out, GOOD);
   assert.equal(new URL(seen.url).host, "api.anthropic.com");
   assert.equal(seen.headers["x-api-key"], ANTHROPIC_KEY);
-  assert.match(seen.headers["anthropic-beta"], /server-side-fallback-2026-07-01/);
-  assert.equal(seen.body.fallbacks, "default");
+  assert.equal(seen.body.model, "claude-sonnet-5");
+  assert.equal(seen.body.fallbacks, undefined);
   assert.equal(seen.body.output_config.format.type, "json_schema");
 });
 
@@ -113,9 +113,9 @@ test("a rejected user key is a 401 that never echoes the key", async () => {
 
 test("Anthropic refusal becomes a clear 422", async () => {
   const fetch = async () =>
-    Response.json({ id: "m", type: "message", role: "assistant", model: "claude-opus-5", stop_reason: "refusal", content: [], usage: { input_tokens: 1, output_tokens: 0 } });
+    Response.json({ id: "m", type: "message", role: "assistant", model: "claude-sonnet-5", stop_reason: "refusal", content: [], usage: { input_tokens: 1, output_tokens: 0 } });
   await assert.rejects(
-    runAssessment({ tier: "byok", provider: "anthropic", apiKey: ANTHROPIC_KEY, model: "claude-opus-5" }, { system: "s", prompt: "p" }, { fetch }),
+    runAssessment({ tier: "byok", provider: "anthropic", apiKey: ANTHROPIC_KEY, model: "claude-sonnet-5" }, { system: "s", prompt: "p" }, { fetch }),
     (e) => e.status === 422 && e.code === "ai_refused",
   );
 });

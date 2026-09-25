@@ -8,7 +8,7 @@ const ANTHROPIC_BASE = "https://api.anthropic.com";
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
 
 export const PROVIDERS = Object.freeze({
-  anthropic: { label: "Anthropic", defaultModel: "claude-opus-5" },
+  anthropic: { label: "Anthropic", defaultModel: "claude-sonnet-5" },
   gemini: { label: "Gemini", defaultModel: "gemini-3.6-flash" },
 });
 
@@ -60,13 +60,11 @@ async function callAnthropic(route, system, prompt, fetchImpl) {
   const client = new Anthropic({ apiKey: route.apiKey, baseURL: ANTHROPIC_BASE, fetch: fetchImpl, maxRetries: 1 });
   let response;
   try {
-    response = await client.beta.messages.create({
+    // No server-side refusal fallbacks: Anthropic documents them for Opus and
+    // Fable models, not Sonnet. A refusal is reported as ai_refused below.
+    response = await client.messages.create({
       model: route.model,
       max_tokens: 16000,
-      // If a safety classifier declines, Anthropic re-runs the request on its
-      // recommended fallback model instead of returning a refusal.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
       output_config: { format: { type: "json_schema", schema: ASSESSMENT_SCHEMA } },
       system,
       messages: [{ role: "user", content: prompt }],
