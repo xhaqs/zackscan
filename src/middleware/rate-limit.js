@@ -40,3 +40,13 @@ async function hashIp(ip) {
 export function _resetMemoryLimiter() {
   memory.clear();
 }
+
+/** Give back one use, e.g. when the AI provider failed and the visitor got nothing. */
+export async function refundRateLimit(request, env, { name = "rl" } = {}) {
+  const ip = request.headers.get("CF-Connecting-IP") || "local";
+  const key = `${name}:${new Date().toISOString().slice(0, 10)}:${await hashIp(ip)}`;
+  if (env.RATE_LIMIT) {
+    const used = Number(await env.RATE_LIMIT.get(key)) || 0;
+    if (used > 0) await env.RATE_LIMIT.put(key, String(used - 1), { expirationTtl: DAY_S + 3600 });
+  } else if ((memory.get(key) || 0) > 0) memory.set(key, memory.get(key) - 1);
+}

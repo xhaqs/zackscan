@@ -10,7 +10,7 @@
 // Bump PROMPT_VERSION whenever the wording or schema changes. It's part of the
 // telemetry fingerprint, so old cached assessments are regenerated.
 
-export const PROMPT_VERSION = "tiers-v1";
+export const PROMPT_VERSION = "tiers-v2";
 export const TIERS = Object.freeze(["plain", "researcher"]);
 const RISK_LEVELS = ["low", "moderate", "high", "severe"];
 
@@ -114,7 +114,17 @@ export function digestMatrix(matrix) {
         region: r.name,
         seismic: s && { score: s.score, status: s.status, eventsLast7Days: s.detail?.eventsLast7Days, baselinePerYear: r1(s.detail?.baselineEventsPerYear), minMagnitude: s.detail?.minMagnitude, largest: s.detail?.largest ? { mag: s.detail.largest.mag, place: s.detail.largest.place } : null, clusteringP: s.components?.clustering?.pValue != null ? Number(s.components.clustering.pValue.toPrecision(2)) : null },
         wildfire: w && { score: w.score, status: w.status, detections: w.components?.activity?.detections ?? null, frpMw: w.components?.activity?.totalFrpMw ?? null, vpdKpa: r1(w.components?.fireWeather?.vpdKpa), rhPct: w.components?.fireWeather?.relativeHumidityPct ?? null, rhDrop24h: w.components?.fireWeather?.humidityDrop24hPts ?? null, pm25: w.components?.smoke?.pm25 ?? null, aqi: w.components?.smoke?.aqi ?? null },
-        heat: h && { score: h.score, status: h.status, peakWetBulbC: r1(h.components?.severity?.peakWetBulbC), zScore: r1(h.components?.anomaly?.zScore), baselineMeanC: r1(h.components?.anomaly?.baselineMeanC), baselineStdC: r1(h.components?.anomaly?.baselineStdC) },
+        // Two different measures; named so they are never compared with each other.
+        heat: h && {
+          score: h.score,
+          status: h.status,
+          severity_hourlyPeakWetBulbNext48hC: r1(h.components?.severity?.peakWetBulbC),
+          anomaly_dailyWetBulbC: r1(h.components?.anomaly?.dailyWetBulbC),
+          anomaly_dailyWetBulbBaselineMeanC: r1(h.components?.anomaly?.baselineMeanC),
+          anomaly_dailyWetBulbBaselineStdC: r1(h.components?.anomaly?.baselineStdC),
+          anomaly_zScore: r1(h.components?.anomaly?.zScore),
+          note: "anomaly_* compares daily wet-bulb (Stull of Tmax, min RH) with the same calendar window over 10 years; the hourly peak has no baseline",
+        },
         glof: g && { status: g.status, note: "stub, non-real-time, no score" },
       };
     });

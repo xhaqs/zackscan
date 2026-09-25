@@ -19,6 +19,7 @@ import { buildAssessmentPrompt, validateTiered, digestMatrix, telemetryFingerpri
 import { getMatrix } from "../risk/matrix.js";
 import { makeStore } from "../risk/store.js";
 import { KEY_HEADER, PROVIDER_HEADER, MODEL_HEADER } from "../middleware/ai-key.js";
+import { refundRateLimit } from "../middleware/rate-limit.js";
 import { AiRouteError } from "../errors.js";
 import { json } from "../http.js";
 
@@ -63,6 +64,8 @@ export async function handleAnalyze(request, env, ctx, getRoute, deps = {}) {
   try {
     assessment = validateTiered(await runAssessment(route, buildAssessmentPrompt({ profile, events: used, riskDigest }), deps));
   } catch (e) {
+    // Nothing was delivered, so it doesn't count against the visitor's daily allowance.
+    if (route.tier === "platform") await refundRateLimit(request, env).catch(() => {});
     if (e instanceof AiRouteError) throw e;
     throw new AiRouteError(502, "ai_bad_output", "The AI's answer was incomplete. Try again.");
   }

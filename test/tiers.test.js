@@ -161,3 +161,26 @@ test("an incomplete model answer is a clear error, not half a view", async () =>
     globalThis.fetch = realFetch;
   }
 });
+
+test("a failed shared-tier generation doesn't use up the visitor's allowance", async () => {
+  const realFetch = globalThis.fetch;
+  let geminiOk = false;
+  globalThis.fetch = async (url) => {
+    const u = new URL(String(url));
+    if (u.host === "eonet.gsfc.nasa.gov") return Response.json({ events: [{ id: "E1", title: "Fire A", categories: [{ id: "wildfires" }], geometry: [] }] });
+    return geminiOk
+      ? Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(TIERED) }] } }] })
+      : new Response(JSON.stringify({ error: { code: 503, message: "high demand" } }), { status: 503 });
+  };
+  try {
+    const env = { PLATFORM_GEMINI_KEY: GEMINI_KEY, PLATFORM_DAILY_LIMIT: "1" };
+    const failed = await post({ profile: "wildfire" }, {}, env);
+    assert.equal(failed.status, 502);
+    geminiOk = true;
+    const ok = await post({ profile: "wildfire" }, {}, env);
+    assert.equal(ok.status, 200, "the allowance of 1 is still there after the failure");
+    assert.equal((await ok.json()).allowance.used, 1);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
