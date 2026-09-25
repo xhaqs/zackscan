@@ -267,7 +267,7 @@ export function fireMap(points, { box, center, title = "Satellite fire detection
   const cx = x(center[1]), cy = y(center[0]);
   const kmPerPx = ((e - w) * 111.32 * k) / (W - 2 * pad);
   for (const km of [50, 100]) el("circle", { cx, cy, r: km / kmPerPx, fill: "none", stroke: INK.grid, "stroke-width": 1 }, svg);
-  text(svg, cx + 100 / kmPerPx, cy - 3, "100 km", { size: 9 });
+  text(svg, cx, cy - 100 / kmPerPx - 3, "100 km", { anchor: "middle", size: 9, halo: true }); // top of the ring: never clipped at the edge
   el("path", { d: `M${cx - 6},${cy} H${cx + 6} M${cx},${cy - 6} V${cy + 6}`, stroke: INK.primary, "stroke-width": 2 }, svg);
   if (!points.length) text(svg, W / 2, (H - 30) / 2 + 18, "No fires detected in the last 24 h", { anchor: "middle", fill: INK.secondary, size: 12 });
   const g = el("g", {}, svg);
