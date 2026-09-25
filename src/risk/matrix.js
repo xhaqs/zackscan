@@ -15,6 +15,7 @@ import { REGIONS, getRegion, fireBox } from "./regions.js";
 import { makeStore } from "./store.js";
 import { levelFor } from "./math.js";
 import { scoreSeismic, scoreWildfire, scoreHeat, heatBaselineFromArchive } from "./scoring.js";
+import { climateFromArchive, weatherSummary } from "./weather.js";
 import { glofPillar, GLOF_LABEL } from "./glof.js";
 import { recentQuakes, historicalQuakeCount } from "./sources/usgs.js";
 import { forecast, archiveDaily } from "./sources/openmeteo.js";
@@ -45,8 +46,12 @@ async function loadBaseline(region, env, store, deps, now) {
 
   const jobs = {
     seismic: () => historicalQuakeCount(region, { now, fetch: deps.fetch }),
-    heat: () =>
-      archiveDaily(region, { startDate: `${year - 10}-01-01`, endDate: `${year - 1}-12-31`, fetch: deps.fetch }).then(heatBaselineFromArchive),
+    // One archive call feeds both the heat anomaly and the weather widget's normals.
+    heat2: () =>
+      archiveDaily(region, { startDate: `${year - 10}-01-01`, endDate: `${year - 1}-12-31`, fetch: deps.fetch }).then((rows) => ({
+        tw: heatBaselineFromArchive(rows),
+        climate: climateFromArchive(rows),
+      })),
     ...(env.OPENAQ_API_KEY ? { aq: () => pm25Stations(region, { apiKey: env.OPENAQ_API_KEY, fetch: deps.fetch }) } : {}),
   };
   const due = Object.keys(jobs).filter((p) => !fresh(p));
@@ -143,13 +148,15 @@ export async function refreshRegion(region, env, deps = {}, { now = Date.now(), 
   // Heat
   let heat;
   if (w) {
-    const h = scoreHeat({ hourlyAhead: w.hourlyAhead, daily: w.daily, baseline: base.heat?.value });
-    const notes = base.heat ? [] : ["No 10-year baseline yet, so there's no anomaly score: severity only."];
+    const h = scoreHeat({ hourlyAhead: w.hourlyAhead, daily: w.daily, baseline: base.heat2?.value?.tw });
+    const notes = base.heat2 ? [] : ["No 10-year baseline yet, so there's no anomaly score: severity only."];
     heat = h.score == null ? fallback(prev.heat, "no usable readings", now, ["Open-Meteo"]) : livePillar(h, { sources: ["Open-Meteo"], asOf, notes });
-    if (!base.heat && heat.status === "live") heat.status = "partial";
+    if (!base.heat2 && heat.status === "live") heat.status = "partial";
   } else heat = fallback(prev.heat, why(wx), now, ["Open-Meteo"]);
 
   const pillars = { seismic, wildfire, heat, glof: glofPillar(region) };
+  // Daily weather vs the seasonal normal (weather widget): same forecast and archive data.
+  const weather = w ? weatherSummary({ current: w.current, today: w.daily[0], climate: base.heat2?.value?.climate, asOf }) : previous?.weather || null;
   const scored = ["seismic", "wildfire", "heat"].filter((k) => pillars[k].score != null);
   const overallScore = scored.length ? Math.max(...scored.map((k) => pillars[k].score)) : null;
 
@@ -166,6 +173,7 @@ export async function refreshRegion(region, env, deps = {}, { now = Date.now(), 
       note: "Overall is the highest live pillar score. GLOF is excluded (stub, no score).",
     },
     pillars,
+    weather,
   };
   await store.put(riskKey(region.id), result);
   return result;
@@ -235,7 +243,7 @@ export function summarizeMatrix(m) {
     scoreBands: m.scoreBands,
     regions: m.regions.map((r) =>
       r.pillars
-        ? { id: r.id, name: r.name, updatedAt: r.updatedAt, overall: { score: r.overall.score, level: r.overall.level }, pillars: Object.fromEntries(Object.entries(r.pillars).map(([k, p]) => [k, slim(p)])), ...(r.outdated ? { outdated: true } : {}) }
+        ? { id: r.id, name: r.name, updatedAt: r.updatedAt, overall: { score: r.overall.score, level: r.overall.level }, pillars: Object.fromEntries(Object.entries(r.pillars).map(([k, p]) => [k, slim(p)])), ...(r.weather ? { weather: r.weather } : {}), ...(r.outdated ? { outdated: true } : {}) }
         : r,
     ),
   };

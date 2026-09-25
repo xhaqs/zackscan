@@ -264,3 +264,24 @@ dialog.map-sheet .tier-toggle button[aria-pressed="true"] { background: #0e7490;
 .map-legend-row span { display: inline-flex; align-items: center; gap: 4px; }
 .map-legend-row i { width: 18px; height: 10px; border-radius: 2px; display: inline-block; }
 .grid-map svg { touch-action: none; }
+
+/* Profile bar under the header: mission, operator, device capabilities */
+.profile-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 16px; background: var(--accent-soft); color: #111; font-size: 0.85rem; }
+.pb-mission { font-weight: 700; }
+.pb-who { color: #333; }
+.pb-who .link { color: #0b5d4b; font-weight: 600; }
+.pb-caps { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
+.cap { padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; border: 1px solid rgba(0, 0, 0, 0.15); background: #fff; color: #1b1f1d; }
+.cap-warn { border-color: #b45309; }
+
+/* Weather widget */
+.wx-head select { font: inherit; padding: 4px 6px; max-width: 100%; }
+.wx-rows { display: grid; gap: 8px; margin: 10px 0; grid-template-columns: 1fr; }
+@media (min-width: 700px) { .wx-rows { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.wx-row { display: grid; grid-template-columns: 14px 1fr; column-gap: 8px; align-items: baseline; padding: 8px; border: 1px solid var(--accent-soft); border-radius: 8px; }
+.wx-swatch { width: 12px; height: 12px; border-radius: 3px; grid-row: 1 / span 4; align-self: start; margin-top: 4px; }
+.wx-label { font-size: 0.8rem; color: var(--muted); }
+.wx-value { font-size: 1.4rem; }
+.wx-anom { font-size: 0.9rem; }
+.wx-normal { font-size: 0.78rem; color: var(--muted); }
+.wx-now { margin: 4px 0; font-size: 0.9rem; }

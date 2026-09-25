@@ -19,7 +19,7 @@ export async function forecast(region, { fetch } = {}) {
     longitude: String(region.lon),
     current: "temperature_2m,relative_humidity_2m,vapour_pressure_deficit,wind_speed_10m",
     hourly: "temperature_2m,relative_humidity_2m",
-    daily: "temperature_2m_max,relative_humidity_2m_min",
+    daily: "temperature_2m_max,relative_humidity_2m_min,relative_humidity_2m_mean,wind_speed_10m_max",
     past_days: "1",
     // 3 days so a full 48 h is always ahead, whatever the time of day.
     forecast_days: "3",
@@ -43,7 +43,13 @@ export async function forecast(region, { fetch } = {}) {
     hourlyAhead: (idx >= 0 ? hourly.slice(idx) : hourly).slice(0, 48), // exactly the next 48 h
     // Today and tomorrow only (past_days=1 also returns yesterday, which must not count).
     daily: d.daily.time
-      .map((date, i) => ({ date, tmaxC: d.daily.temperature_2m_max[i], rhMinPct: d.daily.relative_humidity_2m_min[i] }))
+      .map((date, i) => ({
+        date,
+        tmaxC: d.daily.temperature_2m_max[i],
+        rhMinPct: d.daily.relative_humidity_2m_min[i],
+        rhMeanPct: d.daily.relative_humidity_2m_mean?.[i] ?? null,
+        windMaxKmh: d.daily.wind_speed_10m_max?.[i] ?? null,
+      }))
       .filter((r) => r.date >= c.time.slice(0, 10))
       .slice(0, 2),
   };
@@ -56,12 +62,18 @@ export async function archiveDaily(region, { startDate, endDate, fetch } = {}) {
     longitude: String(region.lon),
     start_date: startDate,
     end_date: endDate,
-    daily: "temperature_2m_max,relative_humidity_2m_min",
+    daily: "temperature_2m_max,relative_humidity_2m_min,relative_humidity_2m_mean,wind_speed_10m_max",
     timezone: "auto",
   });
   const d = await getJson("Open-Meteo archive", ARCHIVE + q, { fetch });
   if (!d.daily?.time) throw new SourceError("Open-Meteo archive", "unexpected response shape", { code: "bad_response" });
   return d.daily.time
-    .map((date, i) => ({ date, tmaxC: d.daily.temperature_2m_max[i], rhMinPct: d.daily.relative_humidity_2m_min[i] }))
+    .map((date, i) => ({
+      date,
+      tmaxC: d.daily.temperature_2m_max[i],
+      rhMinPct: d.daily.relative_humidity_2m_min[i],
+      rhMeanPct: d.daily.relative_humidity_2m_mean?.[i] ?? null,
+      windMaxKmh: d.daily.wind_speed_10m_max?.[i] ?? null,
+    }))
     .filter((r) => Number.isFinite(r.tmaxC) && Number.isFinite(r.rhMinPct));
 }

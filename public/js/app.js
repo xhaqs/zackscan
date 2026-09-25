@@ -10,6 +10,58 @@ import { renderTieredAssessment, preferredTier, setPreferredTier, isTiered } fro
 import { createAlarmController } from "./alarms.js";
 import { renderAlarmSettings } from "./alarm-settings.js";
 import { renderAnomalies } from "./anomaly-deck.js";
+import { getOperator, setOperator, deviceCapabilities, ROLES } from "./operator.js";
+import { weatherTelemetry, renderWeather } from "./weather-widget.js";
+import { REGION_LIST } from "./regions.js";
+
+// ------------------------------------------------------------ profile bar (header)
+// Nothing about the operator is hardcoded: mission, name, organization and
+// role come from this device's settings; the chips report real capabilities.
+async function renderProfileBar() {
+  const bar = document.querySelector("#profile-bar");
+  if (!bar) return;
+  const op = getOperator();
+  const mission = document.querySelector("#profile")?.selectedOptions?.[0]?.textContent || "";
+  const caps = await deviceCapabilities({ hasOwnKey: !!KeyVault.get(), dataSaver: dataSaverOn() });
+  bar.replaceChildren();
+  const m = document.createElement("span");
+  m.className = "pb-mission";
+  m.textContent = mission;
+  bar.append(m);
+  const who = document.createElement("span");
+  who.className = "pb-who";
+  if (op.name || op.organization) who.textContent = [op.name, op.organization, ROLES[op.role].label].filter(Boolean).join(" · ");
+  else {
+    const set = document.createElement("button");
+    set.type = "button";
+    set.className = "link";
+    set.textContent = "Set up your profile";
+    set.addEventListener("click", () => {
+      document.querySelector("#settings").showModal();
+      document.querySelector("#op-name")?.focus();
+    });
+    who.append(set);
+  }
+  bar.append(who);
+  const chips = document.createElement("span");
+  chips.className = "pb-caps";
+  for (const c of caps) {
+    const chip = document.createElement("span");
+    chip.className = "cap " + (c.ok ? "cap-ok" : "cap-warn");
+    chip.textContent = (c.ok ? "✓ " : "! ") + c.label;
+    chips.append(chip);
+  }
+  bar.append(chips);
+}
+addEventListener("zackscan:operator", renderProfileBar);
+navigator.serviceWorker?.addEventListener("controllerchange", renderProfileBar);
+
+// ------------------------------------------------------------ weather widget
+let wxRegion = getOperator().homeRegion;
+function drawWeather() {
+  const el = document.querySelector("#weather");
+  if (el && deck.matrix) renderWeather(el, weatherTelemetry(deck.matrix, wxRegion), { onRegion: (id) => ((wxRegion = id), drawWeather()) });
+}
 
 // ------------------------------------------------------------ anomaly cards
 const deck = { matrix: null, source: null, full: {} };
@@ -103,6 +155,7 @@ startRiskPanel($("#risk"), {
   onRender: (m, s) => {
     Object.assign(deck, { matrix: m, source: s, full: {} });
     drawDeck();
+    drawWeather();
   },
   onStatus: (s) => {
     net.risk = s;
@@ -305,3 +358,31 @@ $("#key-clear").addEventListener("click", () => {
   renderKey();
 });
 renderKey();
+
+// ------------------------------------------------------------ settings: your profile
+{
+  const op = getOperator();
+  const role = document.querySelector("#op-role");
+  const home = document.querySelector("#op-home");
+  for (const [id, r] of Object.entries(ROLES)) role.add(new Option(r.label, id, false, id === op.role));
+  for (const r of REGION_LIST) home.add(new Option(r.name, r.id, false, r.id === op.homeRegion));
+  document.querySelector("#op-name").value = op.name;
+  document.querySelector("#op-org").value = op.organization;
+  const save = () => {
+    const before = getOperator();
+    const next = setOperator({ name: document.querySelector("#op-name").value, organization: document.querySelector("#op-org").value, role: role.value, homeRegion: home.value });
+    // A new role sets the default reading level for AI assessments.
+    if (next.role !== before.role) setPreferredTier(ROLES[next.role].tier);
+    if (next.homeRegion !== before.homeRegion) {
+      wxRegion = next.homeRegion;
+      drawWeather();
+    }
+  };
+  for (const el of ["#op-name", "#op-org"]) document.querySelector(el).addEventListener("change", save);
+  role.addEventListener("change", save);
+  home.addEventListener("change", save);
+}
+document.querySelector("#profile").addEventListener("change", renderProfileBar);
+document.querySelector("#settings").addEventListener("close", renderProfileBar);
+document.querySelector("#alarms").addEventListener("close", renderProfileBar);
+renderProfileBar();
