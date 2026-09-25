@@ -126,7 +126,9 @@ jobs:
             curl -fsS "$URL/api/alerts/key" | grep -q publicKey || { echo "::error::push keys not live after 60 s"; exit 1; }
           fi
           # Offline support: service worker is this build, manifest serves.
-          curl -fsS "$URL/sw.js" | grep -q "${GITHUB_SHA::12}" || { echo "::error::sw.js is not this build"; exit 1; }
+          # The edge can serve the previous static files for a few seconds after a deploy.
+          for i in $(seq 1 12); do curl -fsS "$URL/sw.js" | grep -q "${GITHUB_SHA::12}" && break; sleep 5; done
+          curl -fsS "$URL/sw.js" | grep -q "${GITHUB_SHA::12}" || { echo "::error::sw.js is not this build after 60 s"; exit 1; }
           curl -fsS -o /dev/null "$URL/manifest.webmanifest" || { echo "::error::manifest missing"; exit 1; }
           # Bandwidth: unchanged data answers 304; the summary is much smaller.
           TAG=$(curl -fsS -D - -o /dev/null "$URL/api/risk" | tr -d '\r' | awk -F': ' 'tolower($1)=="etag"{print $2}')
