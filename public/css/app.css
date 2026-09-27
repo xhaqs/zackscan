@@ -1040,6 +1040,12 @@ dialog.map-sheet .tier-toggle button[aria-pressed="true"] {
   width: 100%;
   max-width: 360px;
 }
+.wx-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
 .wx-search-input {
   font: inherit;
   padding: 5px 10px;

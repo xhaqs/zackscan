@@ -98,14 +98,19 @@ function buildPicker(currentLoc, onSelect) {
   input.setAttribute("aria-expanded", "false");
   input.setAttribute("aria-haspopup", "listbox");
   input.setAttribute("aria-label", "Weather location");
+  input.placeholder = "Search any city or place…";
   input.value = currentLoc.name;
+
+  const hint = document.createElement("span");
+  hint.className = "wx-hint";
+  hint.textContent = "Search any location";
 
   const list = document.createElement("div");
   list.className = "wx-dropdown";
   list.setAttribute("role", "listbox");
   list.hidden = true;
 
-  wrap.append(input, list);
+  wrap.append(hint, input, list);
 
   let debounce = null;
 
