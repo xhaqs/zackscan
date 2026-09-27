@@ -1191,7 +1191,7 @@ dialog textarea {
 #profile-creator .sheet-body {
   max-width: 520px;
 }
-#creator-save-row {
+#creator-save-row:not([hidden]) {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
