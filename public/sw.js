@@ -41,6 +41,8 @@ const SHELL_FILES = [
   "/js/grid-map.js",
   "/js/map-sheet.js",
   "/js/operator.js",
+  "/js/custom-profiles.js",
+  "/js/profile-creator.js",
   "/js/weather-widget.js",
   "/js/story-model.js",
   "/js/story-card.js",
@@ -58,7 +60,13 @@ const SYNC_TAG = "risk-refresh";
 
 self.addEventListener("install", (event) => {
   // cache: "reload" skips the HTTP cache, so a new build never precaches old files.
-  event.waitUntil(caches.open(SHELL_CACHE).then((c) => c.addAll(SHELL_FILES.map((u) => new Request(u, { cache: "reload" })))));
+  event.waitUntil(
+    caches
+      .open(SHELL_CACHE)
+      .then((c) =>
+        c.addAll(SHELL_FILES.map((u) => new Request(u, { cache: "reload" }))),
+      ),
+  );
   // No skipWaiting here: the page offers "Update available" and sends SKIP_WAITING,
   // so a running session never mixes old and new modules.
 });
@@ -66,7 +74,9 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      for (const key of await caches.keys()) if (key.startsWith("zackscan-shell-") && key !== SHELL_CACHE) await caches.delete(key);
+      for (const key of await caches.keys())
+        if (key.startsWith("zackscan-shell-") && key !== SHELL_CACHE)
+          await caches.delete(key);
       await self.clients.claim();
     })(),
   );
@@ -79,7 +89,12 @@ self.addEventListener("message", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
-  if (req.method !== "GET" || url.origin !== location.origin || url.pathname.startsWith("/api/")) return;
+  if (
+    req.method !== "GET" ||
+    url.origin !== location.origin ||
+    url.pathname.startsWith("/api/")
+  )
+    return;
 
   if (req.mode === "navigate") {
     // Network first for the page itself (fresh HTML when online), shell when not.
@@ -90,7 +105,13 @@ self.addEventListener("fetch", (event) => {
           if (res.ok) (await caches.open(SHELL_CACHE)).put("/", res.clone());
           return res;
         } catch {
-          return (await caches.match("/")) || new Response("Offline and Zackscan isn't cached yet.", { status: 503, headers: { "Content-Type": "text/plain" } });
+          return (
+            (await caches.match("/")) ||
+            new Response("Offline and Zackscan isn't cached yet.", {
+              status: 503,
+              headers: { "Content-Type": "text/plain" },
+            })
+          );
         }
       })(),
     );
@@ -131,8 +152,13 @@ async function refreshRisk() {
   const res = await fetch("/api/risk?fields=summary", { cache: "no-store" });
   if (!res.ok) throw new Error("risk refresh failed: " + res.status); // sync retries later
   const data = await res.json();
-  await idbPut("snapshots", { key: "risk:summary", data, fetchedAt: Date.now() });
-  for (const client of await self.clients.matchAll({ type: "window" })) client.postMessage({ type: "risk-updated" });
+  await idbPut("snapshots", {
+    key: "risk:summary",
+    data,
+    fetchedAt: Date.now(),
+  });
+  for (const client of await self.clients.matchAll({ type: "window" }))
+    client.postMessage({ type: "risk-updated" });
 }
 
 // ------------------------------------------------------------ alerts (Web Push)
@@ -153,7 +179,11 @@ function alertNotificationOptions(a) {
     badge: "/icons/icon-192.png",
     vibrate: critical ? [700, 200, 700, 200, 700] : [300, 150, 300],
     timestamp: a.at || Date.now(),
-    data: { url: a.url || "/", alertKey: a.alertKey || a.tag, severity: a.severity },
+    data: {
+      url: a.url || "/",
+      alertKey: a.alertKey || a.tag,
+      severity: a.severity,
+    },
     actions: [
       { action: "view", title: "View SitRep" },
       { action: "ack", title: "Acknowledge" },
@@ -172,9 +202,19 @@ self.addEventListener("push", (event) => {
     (async () => {
       // Always show a notification: browsers require it for every push, and a
       // silent failure is the worst outcome for a safety alert.
-      await self.registration.showNotification(a.title || "Zackscan alert", alertNotificationOptions(a));
+      await self.registration.showNotification(
+        a.title || "Zackscan alert",
+        alertNotificationOptions(a),
+      );
       // An open page sounds the alarm (a service worker can't play audio).
-      for (const c of await self.clients.matchAll({ type: "window", includeUncontrolled: true })) c.postMessage({ type: "alarm", alert: { ...a, key: a.alertKey || a.tag } });
+      for (const c of await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      }))
+        c.postMessage({
+          type: "alarm",
+          alert: { ...a, key: a.alertKey || a.tag },
+        });
     })(),
   );
 });
@@ -191,7 +231,10 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil(
     (async () => {
       const target = new URL(url, self.location.origin).href;
-      for (const c of await self.clients.matchAll({ type: "window", includeUncontrolled: true })) {
+      for (const c of await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      })) {
         if (new URL(c.url).origin === self.location.origin) {
           await c.focus();
           return c.navigate ? c.navigate(target) : undefined;
@@ -204,7 +247,11 @@ self.addEventListener("notificationclick", (event) => {
 
 async function acknowledgeAlert(key) {
   if (!key || key === "test") return;
-  for (const c of await self.clients.matchAll({ type: "window", includeUncontrolled: true })) c.postMessage({ type: "alarm-ack", key });
+  for (const c of await self.clients.matchAll({
+    type: "window",
+    includeUncontrolled: true,
+  }))
+    c.postMessage({ type: "alarm-ack", key });
   const sub = await self.registration.pushManager.getSubscription();
   if (!sub) return;
   await fetch("/api/alerts/ack", {
@@ -224,7 +271,9 @@ function idbPut(store, record) {
   return new Promise((resolve, reject) => {
     const open = indexedDB.open(DB_NAME, DB_VERSION);
     open.onupgradeneeded = () => {
-      for (const s of STORES) if (!open.result.objectStoreNames.contains(s)) open.result.createObjectStore(s, { keyPath: "key" });
+      for (const s of STORES)
+        if (!open.result.objectStoreNames.contains(s))
+          open.result.createObjectStore(s, { keyPath: "key" });
     };
     open.onerror = () => reject(open.error);
     open.onsuccess = () => {
