@@ -85,7 +85,7 @@ function buildTelemetry(region, w, now) {
 
 // ---------------------------------------------------------------- location picker (combobox)
 
-function buildPicker(currentLoc, onSelect) {
+export function buildPicker(currentLoc, onSelect) {
   const wrap = document.createElement("div");
   wrap.className = "wx-picker";
 

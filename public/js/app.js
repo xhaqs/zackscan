@@ -25,8 +25,9 @@ import {
   weatherTelemetry,
   weatherTelemetryDirect,
   renderWeather,
+  buildPicker,
 } from "./weather-widget.js";
-import { REGION_LIST, REGION_IDS } from "./regions.js";
+import { REGION_LIST, REGION_IDS, regionName } from "./regions.js";
 import { getCustomProfiles, getCustomProfile } from "./custom-profiles.js";
 import { initProfileCreator } from "./profile-creator.js";
 import { PROFILES } from "./profiles.js";
@@ -85,7 +86,7 @@ navigator.serviceWorker?.addEventListener("controllerchange", renderProfileBar);
 // wxLocation is either { id } for a watchlist city or { id, name, lat, lon, custom:true }
 // for a searched city. Only the weather panel follows this; the risk matrix always
 // shows all 6 watchlist cities regardless of what's searched here.
-let wxLocation = { id: getOperator().homeRegion };
+let wxLocation = getOperator().homeLocation || { id: getOperator().homeRegion };
 let wxWeatherCache = null; // { id, data } — avoids re-fetching on matrix refreshes
 
 function onWeatherSelect(loc) {
@@ -279,6 +280,8 @@ mission = createMissionState({
 // Profile picker — includes custom profiles stored in localStorage.
 const picker = $("#profile");
 
+const profileFilter = $("#profile-filter");
+
 function rebuildPicker() {
   const current = mission.state.profile.id;
   const all = [...Object.values(PROFILES), ...getCustomProfiles()];
@@ -286,8 +289,16 @@ function rebuildPicker() {
     .map((p) => `<option value="${p.id}">${esc(p.name)}</option>`)
     .join("");
   if (all.some((p) => p.id === current)) picker.value = current;
+  profileFilter.style.display = all.length > 4 ? "" : "none";
+  profileFilter.value = "";
 }
 rebuildPicker();
+
+profileFilter.addEventListener("input", () => {
+  const q = profileFilter.value.toLowerCase();
+  for (const opt of picker.options)
+    opt.hidden = q ? !opt.text.toLowerCase().includes(q) : false;
+});
 
 picker.addEventListener("change", () => {
   const id = picker.value;
@@ -550,33 +561,38 @@ renderKey();
 {
   const op = getOperator();
   const role = document.querySelector("#op-role");
-  const home = document.querySelector("#op-home");
   for (const [id, r] of Object.entries(ROLES))
     role.add(new Option(r.label, id, false, id === op.role));
-  for (const r of REGION_LIST)
-    home.add(new Option(r.name, r.id, false, r.id === op.homeRegion));
   document.querySelector("#op-name").value = op.name;
   document.querySelector("#op-org").value = op.organization;
+
+  // Home region: searchable location picker (replaces static <select>).
+  const homeLoc = op.homeLocation || {
+    id: op.homeRegion,
+    name: regionName(op.homeRegion),
+  };
+  if (!homeLoc.name) homeLoc.name = regionName(homeLoc.id);
+  const pickerEl = buildPicker(homeLoc, (loc) => {
+    setOperator({ homeLocation: loc });
+    wxLocation = loc;
+    wxWeatherCache = null;
+    drawWeather();
+  });
+  document.querySelector("#op-home-picker").append(pickerEl);
+
   const save = () => {
     const before = getOperator();
     const next = setOperator({
       name: document.querySelector("#op-name").value,
       organization: document.querySelector("#op-org").value,
       role: role.value,
-      homeRegion: home.value,
     });
     // A new role sets the default reading level for AI assessments.
     if (next.role !== before.role) setPreferredTier(ROLES[next.role].tier);
-    if (next.homeRegion !== before.homeRegion) {
-      wxLocation = { id: next.homeRegion };
-      wxWeatherCache = null;
-      drawWeather();
-    }
   };
   for (const el of ["#op-name", "#op-org"])
     document.querySelector(el).addEventListener("change", save);
   role.addEventListener("change", save);
-  home.addEventListener("change", save);
 }
 document.querySelector("#profile").addEventListener("change", renderProfileBar);
 document.querySelector("#settings").addEventListener("close", renderProfileBar);

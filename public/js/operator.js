@@ -15,18 +15,44 @@ export const ROLES = Object.freeze({
   responder: { label: "Field responder", tier: "plain" },
   analyst: { label: "Analyst / researcher", tier: "researcher" },
 });
-const EMPTY = { name: "", organization: "", role: "public", homeRegion: "nairobi" };
+const EMPTY = {
+  name: "",
+  organization: "",
+  role: "public",
+  homeRegion: "nairobi",
+  homeLocation: { id: "nairobi" },
+};
 
-const clean = (s, max = 60) => String(s ?? "").replace(/[\u0000-\u001f]/g, "").trim().slice(0, max);
+const clean = (s, max = 60) =>
+  String(s ?? "")
+    .replace(/[\u0000-\u001f]/g, "")
+    .trim()
+    .slice(0, max);
 
 export function getOperator() {
   try {
     const v = JSON.parse(localStorage.getItem(KEY) || "null") || {};
+    // Derive homeRegion from homeLocation if present, otherwise fall back to
+    // the stored homeRegion string (backward compat).
+    let homeLocation = v.homeLocation || null;
+    let homeRegion = REGION_IDS.includes(v.homeRegion)
+      ? v.homeRegion
+      : EMPTY.homeRegion;
+    if (homeLocation && typeof homeLocation === "object") {
+      // Stored homeLocation takes precedence; derive homeRegion from it.
+      homeRegion = REGION_IDS.includes(homeLocation.id)
+        ? homeLocation.id
+        : homeRegion;
+    } else {
+      // Backward compat: synthesize homeLocation from homeRegion string.
+      homeLocation = { id: homeRegion };
+    }
     return {
       name: clean(v.name),
       organization: clean(v.organization, 80),
       role: Object.hasOwn(ROLES, v.role) ? v.role : EMPTY.role,
-      homeRegion: REGION_IDS.includes(v.homeRegion) ? v.homeRegion : EMPTY.homeRegion,
+      homeRegion,
+      homeLocation,
     };
   } catch {
     return { ...EMPTY };
@@ -34,8 +60,28 @@ export function getOperator() {
 }
 
 export function setOperator(patch) {
-  const next = { ...getOperator(), ...patch };
-  const v = { name: clean(next.name), organization: clean(next.organization, 80), role: Object.hasOwn(ROLES, next.role) ? next.role : "public", homeRegion: REGION_IDS.includes(next.homeRegion) ? next.homeRegion : "nairobi" };
+  const current = getOperator();
+  const next = { ...current, ...patch };
+  // Resolve homeLocation: if provided in patch, use it; derive homeRegion from it.
+  let homeLocation = next.homeLocation || current.homeLocation;
+  let homeRegion = next.homeRegion || current.homeRegion;
+  if (homeLocation && typeof homeLocation === "object") {
+    if (REGION_IDS.includes(homeLocation.id)) {
+      homeRegion = homeLocation.id;
+    }
+  } else {
+    homeRegion = REGION_IDS.includes(next.homeRegion)
+      ? next.homeRegion
+      : "nairobi";
+    homeLocation = { id: homeRegion };
+  }
+  const v = {
+    name: clean(next.name),
+    organization: clean(next.organization, 80),
+    role: Object.hasOwn(ROLES, next.role) ? next.role : "public",
+    homeRegion,
+    homeLocation,
+  };
   try {
     localStorage.setItem(KEY, JSON.stringify(v));
   } catch {}
@@ -50,11 +96,16 @@ export async function deviceCapabilities({ hasOwnKey, dataSaver }) {
   const perm = globalThis.Notification?.permission;
   let sub = null;
   try {
-    sub = await (await navigator.serviceWorker?.getRegistration())?.pushManager?.getSubscription();
+    sub = await (
+      await navigator.serviceWorker?.getRegistration()
+    )?.pushManager?.getSubscription();
   } catch {}
-  if (sub && perm === "granted") caps.push({ id: "alerts", label: "Background alerts on", ok: true });
-  else if (perm === "denied") caps.push({ id: "alerts", label: "Alerts blocked", ok: false });
-  if (navigator.serviceWorker?.controller) caps.push({ id: "offline", label: "Works offline", ok: true });
+  if (sub && perm === "granted")
+    caps.push({ id: "alerts", label: "Background alerts on", ok: true });
+  else if (perm === "denied")
+    caps.push({ id: "alerts", label: "Alerts blocked", ok: false });
+  if (navigator.serviceWorker?.controller)
+    caps.push({ id: "offline", label: "Works offline", ok: true });
   if (dataSaver) caps.push({ id: "saver", label: "Data saver", ok: true });
   return caps;
 }

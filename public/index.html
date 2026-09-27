@@ -16,7 +16,17 @@
       <h1>Zackscan</h1>
       <label
         >Mission
-        <select id="profile" aria-label="Mission profile"></select>
+        <span class="profile-pick">
+          <input
+            id="profile-filter"
+            type="text"
+            placeholder="Filter profiles…"
+            autocomplete="off"
+            aria-label="Filter mission profiles"
+            style="display: none"
+          />
+          <select id="profile" aria-label="Mission profile"></select>
+        </span>
       </label>
       <button
         id="open-creator"
@@ -123,10 +133,8 @@
             >Role
             <select id="op-role"></select
           ></label>
-          <label
-            >Home region (weather)
-            <select id="op-home"></select
-          ></label>
+          <label>Home region (weather)</label>
+          <div id="op-home-picker"></div>
           <h3>Field settings</h3>
           <label class="check"
             ><input id="data-saver" type="checkbox" /> Data saver: smaller, less
