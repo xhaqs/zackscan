@@ -280,8 +280,6 @@ mission = createMissionState({
 // Profile picker — includes custom profiles stored in localStorage.
 const picker = $("#profile");
 
-const profileFilter = $("#profile-filter");
-
 function rebuildPicker() {
   const current = mission.state.profile.id;
   const all = [...Object.values(PROFILES), ...getCustomProfiles()];
@@ -289,16 +287,8 @@ function rebuildPicker() {
     .map((p) => `<option value="${p.id}">${esc(p.name)}</option>`)
     .join("");
   if (all.some((p) => p.id === current)) picker.value = current;
-  profileFilter.style.display = all.length > 4 ? "" : "none";
-  profileFilter.value = "";
 }
 rebuildPicker();
-
-profileFilter.addEventListener("input", () => {
-  const q = profileFilter.value.toLowerCase();
-  for (const opt of picker.options)
-    opt.hidden = q ? !opt.text.toLowerCase().includes(q) : false;
-});
 
 picker.addEventListener("change", () => {
   const id = picker.value;
@@ -459,6 +449,9 @@ if ("serviceWorker" in navigator) {
             offerUpdate(w),
         );
       });
+      // Force a fetch of sw.js on every page load so the update banner appears
+      // within seconds of opening the app after a deploy.
+      reg.update().catch(() => {});
       // Periodic Background Sync (installed app, Chromium only; the browser sets the real rate).
       try {
         const perm = await navigator.permissions.query({
