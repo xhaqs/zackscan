@@ -10,6 +10,7 @@ import { withAiRoute } from "./middleware/ai-key.js";
 import { handleAnalyze } from "./routes/analyze.js";
 import { handleInterpretProfile } from "./routes/interpret-profile.js";
 import { handleWeather } from "./routes/weather.js";
+import { handleSeaIce } from "./routes/seaice.js";
 import { buildCustomProfileForServer } from "./custom-profile-feeds.js";
 import { loadProfileEvents } from "./feeds.js";
 import { json } from "./http.js";
@@ -58,6 +59,8 @@ export default {
     }
 
     if (route === "GET /api/weather") return handleWeather(request, env);
+
+    if (route === "GET /api/seaice") return handleSeaIce(request, env);
 
     if (route === "GET /api/health") {
       const cron = await makeStore(env).get("cron:last");

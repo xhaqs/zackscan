@@ -47,6 +47,7 @@ const SHELL_FILES = [
   "/js/weather-widget.js",
   "/js/story-model.js",
   "/js/story-card.js",
+  "/js/sea-ice-card.js",
   "/favicon.svg",
   "/manifest.webmanifest",
   "/icons/icon-192.png",

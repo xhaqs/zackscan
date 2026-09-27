@@ -32,6 +32,7 @@ import { getCustomProfiles, getCustomProfile } from "./custom-profiles.js";
 import { initProfileCreator } from "./profile-creator.js";
 import { PROFILES } from "./profiles.js";
 import { addRecentLocation } from "./geocode.js";
+import { fetchAndRenderSeaIce } from "./sea-ice-card.js";
 
 // ------------------------------------------------------------ profile bar (header)
 // Nothing about the operator is hardcoded: mission, name, organization and
@@ -596,3 +597,6 @@ document.querySelector("#profile").addEventListener("change", renderProfileBar);
 document.querySelector("#settings").addEventListener("close", renderProfileBar);
 document.querySelector("#alarms").addEventListener("close", renderProfileBar);
 renderProfileBar();
+
+// ------------------------------------------------------------ sea ice card
+fetchAndRenderSeaIce();
