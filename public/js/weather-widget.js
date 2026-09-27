@@ -99,7 +99,7 @@ export function buildPicker(currentLoc, onSelect) {
   input.setAttribute("aria-haspopup", "listbox");
   input.setAttribute("aria-label", "Weather location");
   input.placeholder = "Search any city or place…";
-  input.value = currentLoc.name;
+  input.value = currentLoc.name || "";
 
   const hint = document.createElement("span");
   hint.className = "wx-hint";

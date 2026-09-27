@@ -476,6 +476,11 @@ if ("serviceWorker" in navigator) {
     "controllerchange",
     () => updateRequested && location.reload(),
   );
+  // Check for updates whenever the tab becomes visible again (catches deploys
+  // that happened while the tab was in the background).
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") swReg?.update().catch(() => {});
+  });
 }
 
 // ------------------------------------------------------------ data saver setting

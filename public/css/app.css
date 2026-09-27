@@ -73,6 +73,16 @@ body > header label {
   width: 100%;
   box-sizing: border-box;
 }
+/* Dropdown inside the settings sheet can't be position:absolute because
+   .sheet-body has overflow-y:auto which clips it. Flow it inline instead. */
+#op-home-picker .wx-picker {
+  position: static;
+}
+#op-home-picker .wx-dropdown {
+  position: static;
+  margin-top: 4px;
+  max-height: 200px;
+}
 main {
   display: grid;
   gap: 16px;
