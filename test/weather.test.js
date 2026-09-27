@@ -125,7 +125,7 @@ test("operator profile: cleaned, bounded, unknown values fall back", async () =>
   assert.deepEqual(vc.homeLocation, custom);
   assert.equal(
     vc.homeRegion,
-    "nairobi",
-    "custom loc doesn't overwrite homeRegion fallback",
+    "dubai",
+    "custom loc doesn't overwrite the last-set watchlist homeRegion",
   );
 });
