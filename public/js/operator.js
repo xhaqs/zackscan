@@ -62,17 +62,18 @@ export function getOperator() {
 export function setOperator(patch) {
   const current = getOperator();
   const next = { ...current, ...patch };
-  // Resolve homeLocation: if provided in patch, use it; derive homeRegion from it.
-  let homeLocation = next.homeLocation || current.homeLocation;
-  let homeRegion = next.homeRegion || current.homeRegion;
-  if (homeLocation && typeof homeLocation === "object") {
-    if (REGION_IDS.includes(homeLocation.id)) {
+  let homeLocation = current.homeLocation;
+  let homeRegion = current.homeRegion;
+  if ("homeLocation" in patch) {
+    // Explicit location object: derive homeRegion if it's a watchlist city.
+    homeLocation = patch.homeLocation;
+    if (homeLocation && REGION_IDS.includes(homeLocation.id))
       homeRegion = homeLocation.id;
-    }
-  } else {
-    homeRegion = REGION_IDS.includes(next.homeRegion)
-      ? next.homeRegion
-      : "nairobi";
+  } else if ("homeRegion" in patch) {
+    // Explicit region id: update homeLocation to match.
+    homeRegion = REGION_IDS.includes(patch.homeRegion)
+      ? patch.homeRegion
+      : current.homeRegion;
     homeLocation = { id: homeRegion };
   }
   const v = {
