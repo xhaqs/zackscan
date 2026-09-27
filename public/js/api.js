@@ -58,6 +58,11 @@ export const api = {
         ...(knownFingerprint ? { knownFingerprint } : {}),
       }),
     }),
+  /** On-demand weather + seasonal baseline for any lat/lon. */
+  weather: (lat, lon) =>
+    call(
+      `/api/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,
+    ),
   /** Interpret a free-text description into a structured mission profile spec. */
   interpretProfile: (description) =>
     call("/api/profiles/interpret", {

@@ -1034,10 +1034,62 @@ dialog.map-sheet .tier-toggle button[aria-pressed="true"] {
 }
 
 /* Weather widget */
-.wx-head select {
+.wx-picker {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  max-width: 360px;
+}
+.wx-search-input {
   font: inherit;
-  padding: 4px 6px;
-  max-width: 100%;
+  padding: 5px 10px;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--accent-soft);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: inherit;
+}
+.wx-search-input:focus {
+  outline: 2px solid #22d3ee;
+  outline-offset: 1px;
+}
+.wx-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--surface, #fff);
+  border: 1px solid var(--accent-soft);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 200;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.wx-group-label {
+  padding: 5px 12px 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.wx-option {
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 0.93rem;
+}
+.wx-option:hover,
+.wx-option:focus {
+  background: var(--accent-soft);
+  outline: none;
+}
+.wx-offlist {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-style: italic;
+  margin: 2px 0 6px;
 }
 .wx-rows {
   display: grid;

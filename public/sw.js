@@ -43,6 +43,7 @@ const SHELL_FILES = [
   "/js/operator.js",
   "/js/custom-profiles.js",
   "/js/profile-creator.js",
+  "/js/geocode.js",
   "/js/weather-widget.js",
   "/js/story-model.js",
   "/js/story-card.js",

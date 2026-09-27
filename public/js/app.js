@@ -21,11 +21,16 @@ import {
   deviceCapabilities,
   ROLES,
 } from "./operator.js";
-import { weatherTelemetry, renderWeather } from "./weather-widget.js";
-import { REGION_LIST } from "./regions.js";
+import {
+  weatherTelemetry,
+  weatherTelemetryDirect,
+  renderWeather,
+} from "./weather-widget.js";
+import { REGION_LIST, REGION_IDS } from "./regions.js";
 import { getCustomProfiles, getCustomProfile } from "./custom-profiles.js";
 import { initProfileCreator } from "./profile-creator.js";
 import { PROFILES } from "./profiles.js";
+import { addRecentLocation } from "./geocode.js";
 
 // ------------------------------------------------------------ profile bar (header)
 // Nothing about the operator is hardcoded: mission, name, organization and
@@ -77,13 +82,49 @@ addEventListener("zackscan:operator", renderProfileBar);
 navigator.serviceWorker?.addEventListener("controllerchange", renderProfileBar);
 
 // ------------------------------------------------------------ weather widget
-let wxRegion = getOperator().homeRegion;
-function drawWeather() {
+// wxLocation is either { id } for a watchlist city or { id, name, lat, lon, custom:true }
+// for a searched city. Only the weather panel follows this; the risk matrix always
+// shows all 6 watchlist cities regardless of what's searched here.
+let wxLocation = { id: getOperator().homeRegion };
+let wxWeatherCache = null; // { id, data } — avoids re-fetching on matrix refreshes
+
+function onWeatherSelect(loc) {
+  // loc is a location object from the combobox (pinned or searched)
+  wxLocation = typeof loc === "string" ? { id: loc } : loc;
+  wxWeatherCache = null;
+  if (wxLocation.custom) addRecentLocation(wxLocation);
+  drawWeather();
+}
+
+async function drawWeather() {
   const el = document.querySelector("#weather");
-  if (el && deck.matrix)
-    renderWeather(el, weatherTelemetry(deck.matrix, wxRegion), {
-      onRegion: (id) => ((wxRegion = id), drawWeather()),
+  if (!el) return;
+  const loc = wxLocation;
+  if (loc.custom) {
+    // Non-watchlist city: fetch from /api/weather, cache until location changes.
+    let data = wxWeatherCache?.id === loc.id ? wxWeatherCache.data : null;
+    if (!data) {
+      try {
+        data = await api.weather(loc.lat, loc.lon);
+        wxWeatherCache = { id: loc.id, data };
+      } catch {
+        renderWeather(
+          el,
+          { region: loc, ready: false },
+          { onRegion: onWeatherSelect },
+        );
+        return;
+      }
+    }
+    renderWeather(el, weatherTelemetryDirect(loc, data.weather), {
+      onRegion: onWeatherSelect,
     });
+  } else {
+    if (deck.matrix)
+      renderWeather(el, weatherTelemetry(deck.matrix, loc.id), {
+        onRegion: onWeatherSelect,
+      });
+  }
 }
 
 // ------------------------------------------------------------ anomaly cards
@@ -527,7 +568,8 @@ renderKey();
     // A new role sets the default reading level for AI assessments.
     if (next.role !== before.role) setPreferredTier(ROLES[next.role].tier);
     if (next.homeRegion !== before.homeRegion) {
-      wxRegion = next.homeRegion;
+      wxLocation = { id: next.homeRegion };
+      wxWeatherCache = null;
       drawWeather();
     }
   };

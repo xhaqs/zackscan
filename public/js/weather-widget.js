@@ -1,33 +1,61 @@
-// Daily weather widget: today's high, humidity and wind for one region, each
+// Daily weather widget: today's high, humidity and wind for one location, each
 // against the seasonal normal ("36.3 °C: −0.8σ below seasonal average").
-// Reads the `weather` block the Worker attaches to every region in
-// /api/risk. It shares the heat pillar's forecast and archive data, so it
-// makes no API calls of its own.
+//
+// For the 6 watchlist cities the data comes from /api/risk (pre-computed,
+// already in the matrix). For any other location it comes from /api/weather
+// (on-demand, same pipeline). The combobox shows Quick picks, Recent, and
+// live geocoding search results.
 
 import { divergingColor } from "./charts.js";
 import { ageLabel } from "./offline-logic.js";
-import { REGION_LIST } from "./regions.js";
+import { REGION_LIST, REGION_IDS } from "./regions.js";
+import { searchLocations, getRecentLocations } from "./geocode.js";
 
-// Signed with a real minus sign: +1.4σ / −0.8σ / 0σ.
 const sig = (z) => `${z > 0 ? "+" : z < 0 ? "−" : ""}${Math.abs(z)}σ`;
 
 const MEASURES = [
-  { key: "tmax", field: "tmaxC", label: "High", unit: "°C", words: ["cooler", "hotter"] },
-  { key: "rhMean", field: "rhMeanPct", label: "Humidity (daily mean)", unit: "%", words: ["drier", "more humid"] },
-  { key: "windMax", field: "windMaxKmh", label: "Wind (daily max)", unit: "km/h", words: ["calmer", "windier"] },
+  {
+    key: "tmax",
+    field: "tmaxC",
+    label: "High",
+    unit: "°C",
+    words: ["cooler", "hotter"],
+  },
+  {
+    key: "rhMean",
+    field: "rhMeanPct",
+    label: "Humidity (daily mean)",
+    unit: "%",
+    words: ["drier", "more humid"],
+  },
+  {
+    key: "windMax",
+    field: "windMaxKmh",
+    label: "Wind (daily max)",
+    unit: "km/h",
+    words: ["calmer", "windier"],
+  },
 ];
 
-/**
- * The "weather telemetry hook": everything the widget shows for a region,
- * derived from a risk matrix. Pure, so it's testable.
- */
+// ---------------------------------------------------------------- telemetry
+
 export function weatherTelemetry(matrix, regionId, now = Date.now()) {
   const r = matrix?.regions?.find((x) => x.id === regionId);
   const w = r?.weather;
   if (!w?.today) return { region: r || { id: regionId }, ready: false };
+  return buildTelemetry(r, w, now);
+}
+
+/** For a searched city: pass the region object and the /api/weather response directly. */
+export function weatherTelemetryDirect(regionObj, weather, now = Date.now()) {
+  if (!weather?.today) return { region: regionObj, ready: false };
+  return buildTelemetry(regionObj, weather, now);
+}
+
+function buildTelemetry(region, w, now) {
   const year = new Date(now).getUTCFullYear();
   return {
-    region: r,
+    region,
     ready: true,
     asOf: w.asOf,
     current: w.current,
@@ -40,31 +68,204 @@ export function weatherTelemetry(matrix, regionId, now = Date.now()) {
           Math.abs(n.z) < 0.5
             ? `${sig(n.z)}, about the seasonal average`
             : `${sig(n.z)} ${n.z > 0 ? "above" : "below"} seasonal average (${m.words[n.z > 0 ? 1 : 0]})`;
-      return { ...m, value: v, z: n.z ?? null, mean: n.mean ?? null, std: n.std ?? null, text };
+      return {
+        ...m,
+        value: v,
+        z: n.z ?? null,
+        mean: n.mean ?? null,
+        std: n.std ?? null,
+        text,
+      };
     }),
-    baselineLabel: w.baselineYears ? `Seasonal average: the same dates (${w.window}) in ${year - 10}–${year - 1}, from ERA5 via Open-Meteo.` : "The 10-year seasonal average is still being built.",
+    baselineLabel: w.baselineYears
+      ? `Seasonal average: the same dates (${w.window}) in ${year - 10}–${year - 1}, from ERA5 via Open-Meteo.`
+      : "The 10-year seasonal average is still being built.",
   };
 }
 
+// ---------------------------------------------------------------- location picker (combobox)
+
+function buildPicker(currentLoc, onSelect) {
+  const wrap = document.createElement("div");
+  wrap.className = "wx-picker";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "wx-search-input";
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-expanded", "false");
+  input.setAttribute("aria-haspopup", "listbox");
+  input.setAttribute("aria-label", "Weather location");
+  input.value = currentLoc.name;
+
+  const list = document.createElement("div");
+  list.className = "wx-dropdown";
+  list.setAttribute("role", "listbox");
+  list.hidden = true;
+
+  wrap.append(input, list);
+
+  let debounce = null;
+
+  function option(loc) {
+    const el = document.createElement("div");
+    el.className = "wx-option";
+    el.setAttribute("role", "option");
+    el.textContent = loc.name;
+    el.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      close();
+      input.value = loc.name;
+      onSelect(loc);
+    });
+    return el;
+  }
+
+  function group(label) {
+    const el = document.createElement("div");
+    el.className = "wx-group-label";
+    el.textContent = label;
+    return el;
+  }
+
+  function populate(groups) {
+    list.innerHTML = "";
+    let any = false;
+    for (const { label, items } of groups) {
+      if (!items.length) continue;
+      any = true;
+      list.append(group(label), ...items.map(option));
+    }
+    list.hidden = !any;
+    input.setAttribute("aria-expanded", String(!list.hidden));
+  }
+
+  function showDefault() {
+    const recent = getRecentLocations().filter(
+      (r) => !REGION_IDS.includes(r.id),
+    );
+    populate([
+      { label: "Quick picks", items: REGION_LIST },
+      ...(recent.length ? [{ label: "Recent", items: recent }] : []),
+    ]);
+  }
+
+  async function search(q) {
+    populate([
+      { label: "Quick picks", items: REGION_LIST },
+      { label: "Searching…", items: [] },
+    ]);
+    const results = await searchLocations(q).catch(() => []);
+    populate([
+      { label: "Quick picks", items: REGION_LIST },
+      {
+        label: results.length ? "Results" : "No results found",
+        items: results,
+      },
+    ]);
+  }
+
+  function close() {
+    list.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+  }
+
+  input.addEventListener("focus", () => {
+    input.select();
+    showDefault();
+  });
+
+  input.addEventListener("input", () => {
+    clearTimeout(debounce);
+    const q = input.value.trim();
+    if (!q) {
+      showDefault();
+      return;
+    }
+    debounce = setTimeout(() => search(q), 300);
+  });
+
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      close();
+      if (!input.value.trim()) input.value = currentLoc.name;
+    }, 150);
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      close();
+      input.blur();
+    }
+    if (e.key === "Enter") {
+      const first = list.querySelector(".wx-option");
+      if (first)
+        first.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      list.querySelector(".wx-option")?.focus();
+    }
+  });
+
+  // Keyboard nav within dropdown
+  list.addEventListener("keydown", (e) => {
+    const opts = [...list.querySelectorAll(".wx-option")];
+    const i = opts.indexOf(document.activeElement);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      opts[i + 1]?.focus();
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      i > 0 ? opts[i - 1]?.focus() : input.focus();
+    }
+    if (e.key === "Enter" && i >= 0)
+      opts[i].dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    if (e.key === "Escape") {
+      close();
+      input.focus();
+    }
+  });
+
+  // Make options focusable for arrow-key nav
+  list.addEventListener("DOMNodeInserted", () => {
+    for (const o of list.querySelectorAll(".wx-option")) o.tabIndex = -1;
+  });
+
+  return wrap;
+}
+
+// ---------------------------------------------------------------- render
+
 export function renderWeather(el, t, { onRegion } = {}) {
   el.replaceChildren();
+
+  const currentLoc = t.region?.name
+    ? t.region
+    : REGION_LIST.find((r) => r.id === t.region?.id) || {
+        id: t.region?.id,
+        name: t.region?.id || "",
+      };
+
   const head = document.createElement("div");
   head.className = "wx-head";
-  const pick = document.createElement("select");
-  pick.setAttribute("aria-label", "Weather location");
-  for (const r of REGION_LIST) pick.add(new Option(r.name, r.id, false, r.id === t.region.id));
-  pick.addEventListener("change", () => onRegion?.(pick.value));
-  head.append(pick);
+  head.append(buildPicker(currentLoc, (loc) => onRegion?.(loc)));
   el.append(head);
+
   if (!t.ready) {
     const p = document.createElement("p");
     p.className = "meta";
-    p.textContent = "Today's weather for this place isn't available yet. It appears with the next data refresh.";
+    p.textContent =
+      "Today's weather for this place isn't available yet. It appears with the next data refresh.";
     el.append(p);
     return;
   }
-  const list = document.createElement("div");
-  list.className = "wx-rows";
+
+  const rows = document.createElement("div");
+  rows.className = "wx-rows";
   for (const row of t.rows) {
     const item = document.createElement("div");
     item.className = "wx-row";
@@ -83,17 +284,34 @@ export function renderWeather(el, t, { onRegion } = {}) {
     anomaly.textContent = row.text;
     const normal = document.createElement("span");
     normal.className = "wx-normal";
-    normal.textContent = row.mean != null ? `normal ${row.mean}${row.std != null ? ` ± ${row.std}` : ""} ${row.unit}` : "";
+    normal.textContent =
+      row.mean != null
+        ? `normal ${row.mean}${row.std != null ? ` ± ${row.std}` : ""} ${row.unit}`
+        : "";
     item.append(sw, label, value, anomaly, normal);
-    list.append(item);
+    rows.append(item);
   }
-  el.append(list);
+  el.append(rows);
+
   const now = document.createElement("p");
   now.className = "wx-now";
   const c = t.current;
-  now.textContent = c ? `Now ${c.tempC} °C · ${c.rh}% humidity · wind ${Math.round(c.windKmh)} km/h · updated ${ageLabel(Date.parse(t.asOf))}` : "";
+  now.textContent = c
+    ? `Now ${c.tempC} °C · ${c.rh}% humidity · wind ${Math.round(c.windKmh)} km/h · updated ${ageLabel(Date.parse(t.asOf))}`
+    : "";
+
   const note = document.createElement("p");
   note.className = "meta";
   note.textContent = t.baselineLabel;
+
   el.append(now, note);
+
+  // For non-watchlist cities, make it explicit that hazard scores don't follow.
+  if (currentLoc.custom || !REGION_IDS.includes(currentLoc.id)) {
+    const offlist = document.createElement("p");
+    offlist.className = "wx-offlist";
+    offlist.textContent =
+      "Hazard risk scores aren't tracked outside the 6 watchlist cities.";
+    el.append(offlist);
+  }
 }
