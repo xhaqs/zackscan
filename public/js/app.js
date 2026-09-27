@@ -6,13 +6,26 @@ import { startRiskPanel } from "./risk.js";
 import { dataSaverOn } from "./poller.js";
 import { saveSitrep, loadSitrep } from "./offline-store.js";
 import { ageLabel } from "./offline-logic.js";
-import { renderTieredAssessment, preferredTier, setPreferredTier, isTiered } from "./tier-toggle.js";
+import {
+  renderTieredAssessment,
+  preferredTier,
+  setPreferredTier,
+  isTiered,
+} from "./tier-toggle.js";
 import { createAlarmController } from "./alarms.js";
 import { renderAlarmSettings } from "./alarm-settings.js";
 import { renderAnomalies } from "./anomaly-deck.js";
-import { getOperator, setOperator, deviceCapabilities, ROLES } from "./operator.js";
+import {
+  getOperator,
+  setOperator,
+  deviceCapabilities,
+  ROLES,
+} from "./operator.js";
 import { weatherTelemetry, renderWeather } from "./weather-widget.js";
 import { REGION_LIST } from "./regions.js";
+import { getCustomProfiles, getCustomProfile } from "./custom-profiles.js";
+import { initProfileCreator } from "./profile-creator.js";
+import { PROFILES } from "./profiles.js";
 
 // ------------------------------------------------------------ profile bar (header)
 // Nothing about the operator is hardcoded: mission, name, organization and
@@ -21,8 +34,12 @@ async function renderProfileBar() {
   const bar = document.querySelector("#profile-bar");
   if (!bar) return;
   const op = getOperator();
-  const mission = document.querySelector("#profile")?.selectedOptions?.[0]?.textContent || "";
-  const caps = await deviceCapabilities({ hasOwnKey: !!KeyVault.get(), dataSaver: dataSaverOn() });
+  const mission =
+    document.querySelector("#profile")?.selectedOptions?.[0]?.textContent || "";
+  const caps = await deviceCapabilities({
+    hasOwnKey: !!KeyVault.get(),
+    dataSaver: dataSaverOn(),
+  });
   bar.replaceChildren();
   const m = document.createElement("span");
   m.className = "pb-mission";
@@ -30,7 +47,10 @@ async function renderProfileBar() {
   bar.append(m);
   const who = document.createElement("span");
   who.className = "pb-who";
-  if (op.name || op.organization) who.textContent = [op.name, op.organization, ROLES[op.role].label].filter(Boolean).join(" · ");
+  if (op.name || op.organization)
+    who.textContent = [op.name, op.organization, ROLES[op.role].label]
+      .filter(Boolean)
+      .join(" · ");
   else {
     const set = document.createElement("button");
     set.type = "button";
@@ -60,25 +80,45 @@ navigator.serviceWorker?.addEventListener("controllerchange", renderProfileBar);
 let wxRegion = getOperator().homeRegion;
 function drawWeather() {
   const el = document.querySelector("#weather");
-  if (el && deck.matrix) renderWeather(el, weatherTelemetry(deck.matrix, wxRegion), { onRegion: (id) => ((wxRegion = id), drawWeather()) });
+  if (el && deck.matrix)
+    renderWeather(el, weatherTelemetry(deck.matrix, wxRegion), {
+      onRegion: (id) => ((wxRegion = id), drawWeather()),
+    });
 }
 
 // ------------------------------------------------------------ anomaly cards
 const deck = { matrix: null, source: null, full: {} };
 function drawDeck() {
-  if (deck.matrix) renderAnomalies(document.querySelector("#anomalies"), deck.matrix, deck.source, { full: deck.full, onNeedFull: loadFullRegion });
+  if (deck.matrix)
+    renderAnomalies(
+      document.querySelector("#anomalies"),
+      deck.matrix,
+      deck.source,
+      { full: deck.full, onNeedFull: loadFullRegion },
+    );
 }
 // Data saver sends the small summary; a card can ask for its region in full.
 async function loadFullRegion(id) {
   try {
-    const m = await (await fetch("/api/risk?region=" + encodeURIComponent(id), { cache: "no-cache" })).json();
+    const m = await (
+      await fetch("/api/risk?region=" + encodeURIComponent(id), {
+        cache: "no-cache",
+      })
+    ).json();
     if (m.regions?.[0]?.pillars) deck.full[id] = m.regions[0];
     drawDeck();
   } catch {}
 }
 
 const $ = (s) => document.querySelector(s);
-const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const esc = (s) =>
+  String(s ?? "").replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ],
+  );
 
 let mission = null; // assigned below; render() can run before createMissionState returns
 
@@ -89,18 +129,29 @@ function renderNet() {
   const el = $("#net-status");
   const parts = [];
   // "starting" = saved data drawn while the first fetch is in flight: not offline yet.
-  const offline = navigator.onLine === false || (net.risk && net.risk.live === false && !net.risk.starting);
+  const offline =
+    navigator.onLine === false ||
+    (net.risk && net.risk.live === false && !net.risk.starting);
   if (offline) {
     parts.push("<b>Offline.</b> Showing data saved on this device:");
-    parts.push(`risk matrix ${net.risk?.fetchedAt ? "from " + esc(ageLabel(net.risk.fetchedAt)) : "not saved yet"}`);
-    if (mission?.state.offlineFrom) parts.push(`· events from ${esc(ageLabel(mission.state.offlineFrom))}`);
-  } else if ((net.risk?.poll?.failures || 0) > 0 || (net.feed?.failures || 0) > 0) {
-    const next = [net.risk?.poll?.nextAt, net.feed?.nextAt].filter(Boolean).sort()[0];
+    parts.push(
+      `risk matrix ${net.risk?.fetchedAt ? "from " + esc(ageLabel(net.risk.fetchedAt)) : "not saved yet"}`,
+    );
+    if (mission?.state.offlineFrom)
+      parts.push(`· events from ${esc(ageLabel(mission.state.offlineFrom))}`);
+  } else if (
+    (net.risk?.poll?.failures || 0) > 0 ||
+    (net.feed?.failures || 0) > 0
+  ) {
+    const next = [net.risk?.poll?.nextAt, net.feed?.nextAt]
+      .filter(Boolean)
+      .sort()[0];
     parts.push(
       `<b>Connection problems.</b> Retrying ${next ? "in " + Math.max(1, Math.round((next - Date.now()) / 60_000)) + " min" : "soon"}, slowing down to save battery and data.`,
     );
   }
-  if (dataSaverOn()) parts.push("Data saver on: smaller, less frequent updates.");
+  if (dataSaverOn())
+    parts.push("Data saver on: smaller, less frequent updates.");
   el.innerHTML = parts.join(" ");
   el.hidden = !parts.length;
   el.classList.toggle("offline", !!offline);
@@ -110,12 +161,17 @@ addEventListener("offline", renderNet);
 setInterval(renderNet, 30_000);
 
 // ------------------------------------------------------------ alarms
-const alarms = createAlarmController({ banner: $("#alarm-banner"), onView: (a) => focusRegion(a.regionId) });
+const alarms = createAlarmController({
+  banner: $("#alarm-banner"),
+  onView: (a) => focusRegion(a.regionId),
+});
 
 /** Open a region's row in the risk matrix and bring it into view ("View SitRep"). */
 function focusRegion(id, tries = 40) {
-  const row = id && document.querySelector(`#risk [data-region="${CSS.escape(id)}"]`);
-  if (!row) return tries > 0 && setTimeout(() => focusRegion(id, tries - 1), 250);
+  const row =
+    id && document.querySelector(`#risk [data-region="${CSS.escape(id)}"]`);
+  if (!row)
+    return tries > 0 && setTimeout(() => focusRegion(id, tries - 1), 250);
   row.querySelector("details").open = true;
   row.scrollIntoView({ behavior: "smooth", block: "start" });
   row.classList.add("focused");
@@ -130,13 +186,17 @@ if (focusParam) {
 
 let health = null;
 $("#open-alarms").addEventListener("click", async () => {
-  health ||= await fetch("/api/health", { cache: "no-cache" }).then((r) => r.json()).catch(() => null);
+  health ||= await fetch("/api/health", { cache: "no-cache" })
+    .then((r) => r.json())
+    .catch(() => null);
   await renderAlarmSettings($("#alarms-body"), alarms, health);
   $("#alarms").showModal();
 });
 $("#alarms-close").addEventListener("click", () => $("#alarms").close());
 // Pinned "✕ Close" at the top of every sheet: always reachable, however long the content.
-document.addEventListener("click", (e) => e.target.closest("[data-close]")?.closest("dialog")?.close());
+document.addEventListener("click", (e) =>
+  e.target.closest("[data-close]")?.closest("dialog")?.close(),
+);
 
 // Once per device: say plainly when background alerts can't be relied on here.
 const notice = alarms.noticeOnce();
@@ -172,29 +232,66 @@ mission = createMissionState({
     net.feed = s;
     renderNet();
   },
+  resolveProfile: (id) => getCustomProfile(id),
 });
 
-// Profile picker
+// Profile picker — includes custom profiles stored in localStorage.
 const picker = $("#profile");
-picker.innerHTML = mission.profiles.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
-picker.value = mission.state.profile.id;
+
+function rebuildPicker() {
+  const current = mission.state.profile.id;
+  const all = [...Object.values(PROFILES), ...getCustomProfiles()];
+  picker.innerHTML = all
+    .map((p) => `<option value="${p.id}">${esc(p.name)}</option>`)
+    .join("");
+  if (all.some((p) => p.id === current)) picker.value = current;
+}
+rebuildPicker();
+
 picker.addEventListener("change", () => {
-  mission.setProfile(picker.value);
+  const id = picker.value;
+  const custom = getCustomProfile(id);
+  mission.setProfile(id, custom || null);
   showSavedSitrep();
+});
+
+addEventListener("zackscan:profiles", () => {
+  rebuildPicker();
+  renderProfileBar();
+});
+
+// "＋ New profile" button opens the creator sheet.
+$("#open-creator").addEventListener("click", () =>
+  $("#profile-creator").showModal(),
+);
+initProfileCreator({
+  onSaved(profile) {
+    rebuildPicker();
+    mission.setProfile(profile.id, profile);
+    showSavedSitrep();
+    renderProfileBar();
+  },
 });
 
 function render(s) {
   const p = s.profile;
-  const every = p.pollMs >= 60000 ? p.pollMs / 60000 + " min" : p.pollMs / 1000 + " s";
-  $("#poll").textContent = `Refreshes about every ${every}${dataSaverOn() ? " (slower on data saver)" : ""}`;
+  const every =
+    p.pollMs >= 60000 ? p.pollMs / 60000 + " min" : p.pollMs / 1000 + " s";
+  $("#poll").textContent =
+    `Refreshes about every ${every}${dataSaverOn() ? " (slower on data saver)" : ""}`;
   $("#status").textContent = s.loading
     ? "Updating…"
     : s.offlineFrom
       ? `Offline: ${s.events.length} events saved ${ageLabel(s.offlineFrom)}`
       : s.error
         ? "Couldn't update: " + s.error
-        : `${s.events.length} open events` + (s.lastFetch ? " · " + new Date(s.lastFetch).toLocaleTimeString() : "");
-  $("#feed-warn").textContent = s.feedErrors.length ? "Some sources didn't answer: " + s.feedErrors.join(", ") : "";
+        : `${s.events.length} open events` +
+          (s.lastFetch
+            ? " · " + new Date(s.lastFetch).toLocaleTimeString()
+            : "");
+  $("#feed-warn").textContent = s.feedErrors.length
+    ? "Some sources didn't answer: " + s.feedErrors.join(", ")
+    : "";
   $("#events").innerHTML = s.events
     .slice(0, 50)
     .map(
@@ -228,9 +325,15 @@ $("#analyze").addEventListener("click", async () => {
   const profileId = mission.state.profile.id;
   btn.disabled = true;
   const saved = await savedSitrep(profileId);
-  out.insertAdjacentHTML("afterbegin", "<p class=\"meta assessing\">Checking for new data…</p>");
+  out.insertAdjacentHTML(
+    "afterbegin",
+    '<p class="meta assessing">Checking for new data…</p>',
+  );
   try {
-    const r = await api.analyze(profileId, saved?.result.fingerprint);
+    const profile = mission.state.profile;
+    const r = await (profile.custom
+      ? api.analyzeCustom(profile, saved?.result.fingerprint)
+      : api.analyze(profileId, saved?.result.fingerprint));
     if (r.unchanged && saved) {
       // Same telemetry as the saved assessment: reuse it, no AI call was made.
       const note = `<p class="saved-note fresh">No new data since this assessment (${esc(ageLabel(Date.parse(saved.result.generatedAt) || saved.savedAt))}), so it wasn’t regenerated.</p>`;
@@ -245,8 +348,15 @@ $("#analyze").addEventListener("click", async () => {
     await saveSitrep(profileId, r); // the public result only; the key is never stored here
   } catch (e) {
     const offline = navigator.onLine === false || e instanceof TypeError; // fetch network failure
-    await showSavedSitrep(`<p class="err">${esc(offline ? "You’re offline, so no new assessment." : e.message)}</p>`);
-    if (e.code === "byok_key_rejected" || e.code === "platform_rate_limited" || e.code === "platform_unavailable") $("#settings").showModal();
+    await showSavedSitrep(
+      `<p class="err">${esc(offline ? "You’re offline, so no new assessment." : e.message)}</p>`,
+    );
+    if (
+      e.code === "byok_key_rejected" ||
+      e.code === "platform_rate_limited" ||
+      e.code === "platform_unavailable"
+    )
+      $("#settings").showModal();
   } finally {
     out.querySelector(".assessing")?.remove();
     btn.disabled = false;
@@ -259,7 +369,8 @@ for (const r of document.querySelectorAll("input[name=tier-pref]")) {
   r.addEventListener("change", () => r.checked && setPreferredTier(r.value));
 }
 addEventListener("zackscan:tier", (e) => {
-  for (const r of document.querySelectorAll("input[name=tier-pref]")) r.checked = r.value === e.detail;
+  for (const r of document.querySelectorAll("input[name=tier-pref]"))
+    r.checked = r.value === e.detail;
 });
 
 // ------------------------------------------------------------ service worker
@@ -284,20 +395,35 @@ if ("serviceWorker" in navigator) {
           worker.postMessage({ type: "SKIP_WAITING" });
         };
       };
-      if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
+      if (reg.waiting && navigator.serviceWorker.controller)
+        offerUpdate(reg.waiting);
       reg.addEventListener("updatefound", () => {
         const w = reg.installing;
-        w?.addEventListener("statechange", () => w.state === "installed" && navigator.serviceWorker.controller && offerUpdate(w));
+        w?.addEventListener(
+          "statechange",
+          () =>
+            w.state === "installed" &&
+            navigator.serviceWorker.controller &&
+            offerUpdate(w),
+        );
       });
       // Periodic Background Sync (installed app, Chromium only; the browser sets the real rate).
       try {
-        const perm = await navigator.permissions.query({ name: "periodic-background-sync" });
-        if (perm.state === "granted") await reg.periodicSync.register("risk-refresh", { minInterval: 60 * 60_000 });
+        const perm = await navigator.permissions.query({
+          name: "periodic-background-sync",
+        });
+        if (perm.state === "granted")
+          await reg.periodicSync.register("risk-refresh", {
+            minInterval: 60 * 60_000,
+          });
       } catch {}
     })
     .catch(() => {}); // no service worker: the app still works online
   // Reload only when the user tapped "Update", never out from under them.
-  navigator.serviceWorker.addEventListener("controllerchange", () => updateRequested && location.reload());
+  navigator.serviceWorker.addEventListener(
+    "controllerchange",
+    () => updateRequested && location.reload(),
+  );
 }
 
 // ------------------------------------------------------------ data saver setting
@@ -315,11 +441,15 @@ saver.addEventListener("change", () => {
 // ------------------------------------------------------------ settings: bring your own key
 const provSel = $("#key-provider");
 const modelSel = $("#key-model");
-provSel.innerHTML = Object.entries(AI_PROVIDERS).map(([id, p]) => `<option value="${id}">${esc(p.label)}</option>`).join("");
+provSel.innerHTML = Object.entries(AI_PROVIDERS)
+  .map(([id, p]) => `<option value="${id}">${esc(p.label)}</option>`)
+  .join("");
 
 function fillModels(provider, selected) {
   const p = AI_PROVIDERS[provider];
-  modelSel.innerHTML = p.models.map((m) => `<option value="${m.id}">${esc(m.label)}</option>`).join("");
+  modelSel.innerHTML = p.models
+    .map((m) => `<option value="${m.id}">${esc(m.label)}</option>`)
+    .join("");
   modelSel.value = selected || p.defaultModel;
   $("#key-hint").textContent = "(" + p.keyHint + ")";
 }
@@ -327,7 +457,11 @@ provSel.addEventListener("change", () => fillModels(provSel.value));
 
 function renderKey() {
   const m = KeyVault.masked();
-  const where = { tab: "until this tab closes", device: "on this device", memory: "until the page reloads" }[KeyVault.where()];
+  const where = {
+    tab: "until this tab closes",
+    device: "on this device",
+    memory: "until the page reloads",
+  }[KeyVault.where()];
   $("#key-state").textContent = m
     ? `Using your ${m.providerLabel} key ${m.hint} with ${m.modelLabel}, kept ${where}.`
     : "No key set. AI uses the shared tier with a daily limit.";
@@ -335,7 +469,10 @@ function renderKey() {
   $("#key-remember").checked = KeyVault.where() === "device";
   provSel.value = m ? m.provider : provSel.value || "gemini";
   fillModels(provSel.value, m?.model);
-  $("#key-input").placeholder = m && m.provider === provSel.value ? "Leave empty to keep your saved key" : "";
+  $("#key-input").placeholder =
+    m && m.provider === provSel.value
+      ? "Leave empty to keep your saved key"
+      : "";
 }
 $("#open-settings").addEventListener("click", () => $("#settings").showModal());
 $("#settings-close").addEventListener("click", () => $("#settings").close());
@@ -344,9 +481,18 @@ $("#key-form").addEventListener("submit", (ev) => {
   const key = $("#key-input").value.trim();
   const saved = KeyVault.masked();
   let r;
-  if (key) r = KeyVault.save(provSel.value, key, { remember: $("#key-remember").checked, model: modelSel.value });
-  else if (saved && saved.provider === provSel.value) r = KeyVault.setModel(modelSel.value); // just switching model
-  else r = { ok: false, error: `Paste your ${AI_PROVIDERS[provSel.value].label} API key.` };
+  if (key)
+    r = KeyVault.save(provSel.value, key, {
+      remember: $("#key-remember").checked,
+      model: modelSel.value,
+    });
+  else if (saved && saved.provider === provSel.value)
+    r = KeyVault.setModel(modelSel.value); // just switching model
+  else
+    r = {
+      ok: false,
+      error: `Paste your ${AI_PROVIDERS[provSel.value].label} API key.`,
+    };
   $("#key-error").textContent = r.ok ? "" : r.error;
   if (r.ok) {
     $("#key-input").value = "";
@@ -364,13 +510,20 @@ renderKey();
   const op = getOperator();
   const role = document.querySelector("#op-role");
   const home = document.querySelector("#op-home");
-  for (const [id, r] of Object.entries(ROLES)) role.add(new Option(r.label, id, false, id === op.role));
-  for (const r of REGION_LIST) home.add(new Option(r.name, r.id, false, r.id === op.homeRegion));
+  for (const [id, r] of Object.entries(ROLES))
+    role.add(new Option(r.label, id, false, id === op.role));
+  for (const r of REGION_LIST)
+    home.add(new Option(r.name, r.id, false, r.id === op.homeRegion));
   document.querySelector("#op-name").value = op.name;
   document.querySelector("#op-org").value = op.organization;
   const save = () => {
     const before = getOperator();
-    const next = setOperator({ name: document.querySelector("#op-name").value, organization: document.querySelector("#op-org").value, role: role.value, homeRegion: home.value });
+    const next = setOperator({
+      name: document.querySelector("#op-name").value,
+      organization: document.querySelector("#op-org").value,
+      role: role.value,
+      homeRegion: home.value,
+    });
     // A new role sets the default reading level for AI assessments.
     if (next.role !== before.role) setPreferredTier(ROLES[next.role].tier);
     if (next.homeRegion !== before.homeRegion) {
@@ -378,7 +531,8 @@ renderKey();
       drawWeather();
     }
   };
-  for (const el of ["#op-name", "#op-org"]) document.querySelector(el).addEventListener("change", save);
+  for (const el of ["#op-name", "#op-org"])
+    document.querySelector(el).addEventListener("change", save);
   role.addEventListener("change", save);
   home.addEventListener("change", save);
 }

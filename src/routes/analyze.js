@@ -14,6 +14,7 @@
 //   share one generation instead of each spending the small shared quota.
 
 import { getProfile } from "../../public/js/profiles.js";
+import { buildCustomProfileForServer } from "../custom-profile-feeds.js";
 import { AI_PROVIDERS } from "../../public/js/ai-catalog.js";
 import { loadProfileEvents } from "../feeds.js";
 import { runAssessment } from "../ai/providers.js";
@@ -30,7 +31,11 @@ import {
 import { getMatrix } from "../risk/matrix.js";
 import { getRegion } from "../risk/regions.js";
 import { makeStore } from "../risk/store.js";
-import { KEY_HEADER, PROVIDER_HEADER, MODEL_HEADER } from "../middleware/ai-key.js";
+import {
+  KEY_HEADER,
+  PROVIDER_HEADER,
+  MODEL_HEADER,
+} from "../middleware/ai-key.js";
 import { refundRateLimit } from "../middleware/rate-limit.js";
 import { AiRouteError } from "../errors.js";
 import { json } from "../http.js";
@@ -41,20 +46,31 @@ const SHARED_CACHE_S = 6 * 3600;
 /** @param getRoute lazy route resolver from withAiRoute(..., {lazy:true}) */
 export async function handleAnalyze(request, env, ctx, getRoute, deps = {}) {
   const raw = await request.text();
-  if (raw.length > 4096) throw new AiRouteError(413, "too_large", "Request too large.");
+  if (raw.length > 4096)
+    throw new AiRouteError(413, "too_large", "Request too large.");
   let body = {};
   try {
     body = JSON.parse(raw || "{}");
   } catch {}
-  const known = typeof body.knownFingerprint === "string" && /^[0-9a-f]{24}$/.test(body.knownFingerprint) ? body.knownFingerprint : null;
+  const known =
+    typeof body.knownFingerprint === "string" &&
+    /^[0-9a-f]{24}$/.test(body.knownFingerprint)
+      ? body.knownFingerprint
+      : null;
   const store = deps.store || makeStore(env);
 
-  const job = body.region != null || body.pillar != null ? await cardJob(body, env, deps, store) : await profileJob(body, env, deps, store);
+  const job =
+    body.region != null || body.pillar != null
+      ? await cardJob(body, env, deps, store)
+      : await profileJob(body, env, deps, store);
   if (job.empty) return json(job.empty);
   const { fingerprint } = job;
-  if (known === fingerprint) return json({ ...job.ids, fingerprint, unchanged: true });
+  if (known === fingerprint)
+    return json({ ...job.ids, fingerprint, unchanged: true });
 
-  const byok = [KEY_HEADER, PROVIDER_HEADER, MODEL_HEADER].some((h) => request.headers.has(h));
+  const byok = [KEY_HEADER, PROVIDER_HEADER, MODEL_HEADER].some((h) =>
+    request.headers.has(h),
+  );
   const sharedKey = `assess:v1:${fingerprint}:${AI_PROVIDERS.gemini.defaultModel}`;
   if (!byok) {
     const hit = await store.get(sharedKey);
@@ -67,9 +83,14 @@ export async function handleAnalyze(request, env, ctx, getRoute, deps = {}) {
     assessment = validateTiered(await runAssessment(route, job.prompt(), deps));
   } catch (e) {
     // Nothing was delivered, so it doesn't count against the visitor's daily allowance.
-    if (route.tier === "platform") await refundRateLimit(request, env).catch(() => {});
+    if (route.tier === "platform")
+      await refundRateLimit(request, env).catch(() => {});
     if (e instanceof AiRouteError) throw e;
-    throw new AiRouteError(502, "ai_bad_output", "The AI's answer was incomplete. Try again.");
+    throw new AiRouteError(
+      502,
+      "ai_bad_output",
+      "The AI's answer was incomplete. Try again.",
+    );
   }
 
   const result = {
@@ -84,13 +105,22 @@ export async function handleAnalyze(request, env, ctx, getRoute, deps = {}) {
     feedErrors: job.feedErrors,
     assessment,
   };
-  if (route.tier === "platform") await store.put(sharedKey, result, SHARED_CACHE_S);
-  return json({ ...result, ...(route.limit ? { allowance: { used: route.limit.used, max: route.limit.max } } : {}) });
+  if (route.tier === "platform")
+    await store.put(sharedKey, result, SHARED_CACHE_S);
+  return json({
+    ...result,
+    ...(route.limit
+      ? { allowance: { used: route.limit.used, max: route.limit.max } }
+      : {}),
+  });
 }
 
 async function profileJob(body, env, deps, store) {
-  const profile = getProfile(body.profile);
-  if (!profile) throw new AiRouteError(400, "profile_invalid", "Unknown mission profile.");
+  const profile = body.customProfile
+    ? buildCustomProfileForServer(body.customProfile)
+    : getProfile(body.profile);
+  if (!profile)
+    throw new AiRouteError(400, "profile_invalid", "Unknown mission profile.");
   const [{ events, errors }, matrix] = await Promise.all([
     loadProfileEvents(profile, deps),
     // Cached regions only: an assessment never waits on fresh risk computation.
@@ -98,26 +128,64 @@ async function profileJob(body, env, deps, store) {
   ]);
   const used = events.slice(0, MAX_EVENTS);
   const riskDigest = matrix ? digestMatrix(matrix) : null;
-  const fingerprint = await telemetryFingerprint({ profileId: profile.id, events: used, riskDigest });
+  const fingerprint = await telemetryFingerprint({
+    profileId: profile.id,
+    events: used,
+    riskDigest,
+  });
   const ids = { profile: profile.id };
-  if (!events.length) return { empty: { ...ids, fingerprint, assessment: null, note: "No open events in this profile's feeds.", feedErrors: errors } };
-  return { ids, fingerprint, eventCount: events.length, feedErrors: errors, prompt: () => buildAssessmentPrompt({ profile, events: used, riskDigest }) };
+  if (!events.length)
+    return {
+      empty: {
+        ...ids,
+        fingerprint,
+        assessment: null,
+        note: "No open events in this profile's feeds.",
+        feedErrors: errors,
+      },
+    };
+  return {
+    ids,
+    fingerprint,
+    eventCount: events.length,
+    feedErrors: errors,
+    prompt: () => buildAssessmentPrompt({ profile, events: used, riskDigest }),
+  };
 }
 
 async function cardJob(body, env, deps, store) {
   const region = getRegion(body.region);
   if (!region) throw new AiRouteError(400, "region_invalid", "Unknown region.");
-  if (!Object.hasOwn(CARD_PILLARS, body.pillar)) throw new AiRouteError(400, "pillar_invalid", "No AI SitRep for this hazard type.");
-  const m = await getMatrix(env, { ...deps, store }, { regionId: region.id, computeBudget: 0 }).catch(() => null);
+  if (!Object.hasOwn(CARD_PILLARS, body.pillar))
+    throw new AiRouteError(
+      400,
+      "pillar_invalid",
+      "No AI SitRep for this hazard type.",
+    );
+  const m = await getMatrix(
+    env,
+    { ...deps, store },
+    { regionId: region.id, computeBudget: 0 },
+  ).catch(() => null);
   const pillar = m?.regions?.[0]?.pillars?.[body.pillar];
-  if (!pillar || pillar.score == null) throw new AiRouteError(409, "no_data", "There's no data for this anomaly yet. Try again in a few minutes.");
+  if (!pillar || pillar.score == null)
+    throw new AiRouteError(
+      409,
+      "no_data",
+      "There's no data for this anomaly yet. Try again in a few minutes.",
+    );
   const digest = cardDigest(body.pillar, pillar);
-  const fingerprint = await telemetryFingerprint({ profileId: `card:${region.id}:${body.pillar}`, events: [], riskDigest: digest });
+  const fingerprint = await telemetryFingerprint({
+    profileId: `card:${region.id}:${body.pillar}`,
+    events: [],
+    riskDigest: digest,
+  });
   return {
     ids: { region: region.id, pillar: body.pillar },
     fingerprint,
     eventCount: 0,
     feedErrors: [],
-    prompt: () => buildCardPrompt({ regionName: region.name, key: body.pillar, digest }),
+    prompt: () =>
+      buildCardPrompt({ regionName: region.name, key: body.pillar, digest }),
   };
 }

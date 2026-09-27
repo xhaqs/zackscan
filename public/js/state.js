@@ -12,6 +12,7 @@ import { createPoller, timed } from "./poller.js";
 import { saveSnapshot, loadSnapshot } from "./offline-store.js";
 
 const PREF = "zackscan.profile";
+const CUSTOM_PREF = "zackscan.profile.custom";
 
 function savedProfile() {
   try {
@@ -21,31 +22,73 @@ function savedProfile() {
   }
 }
 
-export function createMissionState({ root = document.documentElement, onChange = () => {}, onPoll = () => {} } = {}) {
-  const state = { profile: null, events: [], feedErrors: [], lastFetch: 0, loading: false, error: null, offlineFrom: null };
+function savedCustomProfile() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_PREF);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function createMissionState({
+  root = document.documentElement,
+  onChange = () => {},
+  onPoll = () => {},
+  // Extra profiles (e.g. custom) merged into the profiles list.
+  extraProfiles = [],
+  // Resolve a profile object by id when getProfile returns null (e.g. custom profiles).
+  resolveProfile = null,
+} = {}) {
+  const state = {
+    profile: null,
+    events: [],
+    feedErrors: [],
+    lastFetch: 0,
+    loading: false,
+    error: null,
+    offlineFrom: null,
+  };
   let generation = 0; // ignore answers from a profile we've since left
 
   function applyPalette(p) {
-    for (const [k, v] of Object.entries(p.palette)) root.style.setProperty("--" + k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase()), v);
+    for (const [k, v] of Object.entries(p.palette))
+      root.style.setProperty(
+        "--" + k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase()),
+        v,
+      );
     root.dataset.profile = p.id;
   }
 
   async function poll() {
     const gen = generation;
-    const id = state.profile.id;
+    const p = state.profile;
     state.loading = true;
     onChange(state);
     try {
-      const data = await timed(() => api.feed(id));
+      const data = await timed(() =>
+        p.custom ? api.feedCustom(p) : api.feed(p.id),
+      );
       if (gen !== generation) return;
-      Object.assign(state, { events: data.events, feedErrors: data.errors, lastFetch: data.fetchedAt, error: null, offlineFrom: null });
-      await saveSnapshot("feed:" + id, data, data.fetchedAt || Date.now());
+      Object.assign(state, {
+        events: data.events,
+        feedErrors: data.errors,
+        lastFetch: data.fetchedAt,
+        error: null,
+        offlineFrom: null,
+      });
+      await saveSnapshot("feed:" + p.id, data, data.fetchedAt || Date.now());
     } catch (e) {
       if (gen !== generation) return;
       state.error = e.message;
-      const snap = await loadSnapshot("feed:" + id);
+      const snap = await loadSnapshot("feed:" + p.id);
       if (snap && gen === generation)
-        Object.assign(state, { events: snap.data.events, feedErrors: snap.data.errors || [], lastFetch: snap.fetchedAt, offlineFrom: snap.fetchedAt });
+        Object.assign(state, {
+          events: snap.data.events,
+          feedErrors: snap.data.errors || [],
+          lastFetch: snap.fetchedAt,
+          offlineFrom: snap.fetchedAt,
+        });
       throw e; // let the poller back off
     } finally {
       if (gen === generation) {
@@ -55,19 +98,40 @@ export function createMissionState({ root = document.documentElement, onChange =
     }
   }
 
-  const poller = createPoller({ task: poll, baseMs: () => state.profile.pollMs, onState: onPoll });
+  const poller = createPoller({
+    task: poll,
+    baseMs: () => state.profile.pollMs,
+    onState: onPoll,
+  });
 
   const api_ = {
     get state() {
       return state;
     },
-    profiles: Object.values(PROFILES),
-    setProfile(id) {
-      const p = getProfile(id) || PROFILES[DEFAULT_PROFILE];
+    get profiles() {
+      return [...Object.values(PROFILES), ...extraProfiles];
+    },
+    setProfile(id, profileObj = null) {
+      const p =
+        profileObj ||
+        getProfile(id) ||
+        (resolveProfile && resolveProfile(id)) ||
+        PROFILES[DEFAULT_PROFILE];
       generation++;
-      Object.assign(state, { profile: p, events: [], offlineFrom: null, error: null });
+      Object.assign(state, {
+        profile: p,
+        events: [],
+        offlineFrom: null,
+        error: null,
+      });
       try {
-        localStorage.setItem(PREF, p.id);
+        if (p.custom) {
+          localStorage.setItem(PREF, "__custom__");
+          localStorage.setItem(CUSTOM_PREF, JSON.stringify(p));
+        } else {
+          localStorage.setItem(PREF, p.id);
+          localStorage.removeItem(CUSTOM_PREF);
+        }
       } catch {}
       applyPalette(p);
       poller.restart();
@@ -76,6 +140,17 @@ export function createMissionState({ root = document.documentElement, onChange =
     stop: () => poller.stop(),
   };
 
-  api_.setProfile(savedProfile() || DEFAULT_PROFILE);
+  // Restore last-used profile, including custom ones.
+  const savedId = savedProfile();
+  if (savedId === "__custom__") {
+    const custom = savedCustomProfile();
+    if (custom) {
+      api_.setProfile(custom.id, custom);
+    } else {
+      api_.setProfile(DEFAULT_PROFILE);
+    }
+  } else {
+    api_.setProfile(savedId || DEFAULT_PROFILE);
+  }
   return api_;
 }
