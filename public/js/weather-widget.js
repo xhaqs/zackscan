@@ -153,13 +153,13 @@ function buildPicker(currentLoc, onSelect) {
   }
 
   async function search(q) {
-    populate([
-      { label: "Quick picks", items: REGION_LIST },
-      { label: "Searching…", items: [] },
-    ]);
+    // While searching, hide Quick picks so Enter always hits a search result.
+    list.innerHTML = "";
+    list.append(group("Searching…"));
+    list.hidden = false;
+    input.setAttribute("aria-expanded", "true");
     const results = await searchLocations(q).catch(() => []);
     populate([
-      { label: "Quick picks", items: REGION_LIST },
       {
         label: results.length ? "Results" : "No results found",
         items: results,
@@ -231,9 +231,9 @@ function buildPicker(currentLoc, onSelect) {
   });
 
   // Make options focusable for arrow-key nav
-  list.addEventListener("DOMNodeInserted", () => {
+  new MutationObserver(() => {
     for (const o of list.querySelectorAll(".wx-option")) o.tabIndex = -1;
-  });
+  }).observe(list, { childList: true, subtree: true });
 
   return wrap;
 }
