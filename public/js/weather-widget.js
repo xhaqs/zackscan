@@ -113,6 +113,13 @@ function buildPicker(currentLoc, onSelect) {
   wrap.append(hint, input, list);
 
   let debounce = null;
+  let activeSearch = null; // promise of the in-flight search
+
+  function selectFirst() {
+    const first = list.querySelector(".wx-option");
+    if (first)
+      first.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  }
 
   function option(loc) {
     const el = document.createElement("div");
@@ -148,6 +155,7 @@ function buildPicker(currentLoc, onSelect) {
   }
 
   function showDefault() {
+    activeSearch = null;
     const recent = getRecentLocations().filter(
       (r) => !REGION_IDS.includes(r.id),
     );
@@ -157,19 +165,35 @@ function buildPicker(currentLoc, onSelect) {
     ]);
   }
 
-  async function search(q) {
-    // While searching, hide Quick picks so Enter always hits a search result.
+  async function search(q, { autoSelect = false } = {}) {
     list.innerHTML = "";
     list.append(group("Searching…"));
     list.hidden = false;
     input.setAttribute("aria-expanded", "true");
-    const results = await searchLocations(q).catch(() => []);
+    const p = searchLocations(q).catch(() => []);
+    activeSearch = p;
+    const results = await p;
+    if (activeSearch !== p) return; // superseded
+    activeSearch = null;
     populate([
       {
         label: results.length ? "Results" : "No results found",
         items: results,
       },
     ]);
+    // Inline autocomplete: fill the rest of the first result as selected text
+    if (results.length && document.activeElement === input) {
+      const full = results[0].name;
+      if (
+        full.toLowerCase().startsWith(q.toLowerCase()) &&
+        full.length > q.length
+      ) {
+        const start = input.selectionStart ?? q.length;
+        input.value = q + full.slice(q.length);
+        input.setSelectionRange(start, input.value.length);
+      }
+    }
+    if (autoSelect) selectFirst();
   }
 
   function close() {
@@ -189,7 +213,7 @@ function buildPicker(currentLoc, onSelect) {
       showDefault();
       return;
     }
-    debounce = setTimeout(() => search(q), 300);
+    debounce = setTimeout(() => search(q), 200);
   });
 
   input.addEventListener("blur", () => {
@@ -205,9 +229,21 @@ function buildPicker(currentLoc, onSelect) {
       input.blur();
     }
     if (e.key === "Enter") {
+      e.preventDefault();
+      const q = input.value.trim();
+      if (!q) return;
       const first = list.querySelector(".wx-option");
-      if (first)
+      if (first) {
+        // Results already loaded — pick the first one immediately.
         first.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      } else if (activeSearch) {
+        // Still fetching — auto-select the first result when it arrives.
+        activeSearch.then(() => selectFirst());
+      } else {
+        // Debounce hasn't fired yet — kick off the search now and auto-select.
+        clearTimeout(debounce);
+        search(q, { autoSelect: true });
+      }
     }
     if (e.key === "ArrowDown") {
       e.preventDefault();
