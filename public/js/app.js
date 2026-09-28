@@ -432,11 +432,24 @@ if ("serviceWorker" in navigator) {
     .then(async (reg) => {
       swReg = reg;
       const offerUpdate = (worker) => {
-        $("#update-bar").hidden = false;
-        $("#update-now").onclick = () => {
+        const bar = $("#update-bar");
+        const countEl = $("#update-count");
+        bar.hidden = false;
+        const doUpdate = () => {
           updateRequested = true;
           worker.postMessage({ type: "SKIP_WAITING" });
         };
+        $("#update-now").onclick = doUpdate;
+        // Auto-apply after 8 s so stale caches self-heal without user action.
+        let n = 8;
+        const tick = setInterval(() => {
+          n--;
+          if (countEl) countEl.textContent = n;
+          if (n <= 0) {
+            clearInterval(tick);
+            doUpdate();
+          }
+        }, 1000);
       };
       if (reg.waiting && navigator.serviceWorker.controller)
         offerUpdate(reg.waiting);

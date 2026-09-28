@@ -2,18 +2,18 @@
 // Arctic sea ice extent vs 1981–2010 climatological baseline.
 //
 // Endpoints (no key required):
-//   Daily extent:    https://noaadata.apps.nsidc.org/NOAA/G02135/north/daily/data/N_seaice_extent_daily_v3.0.csv
-//   Climatology:     https://noaadata.apps.nsidc.org/NOAA/G02135/north/daily/data/N_seaice_extent_climatology_1981-2010_v3.0.csv
+//   Daily extent:    https://noaadata.apps.nsidc.org/NOAA/G02135/north/daily/data/N_seaice_extent_daily_v4.0.csv
+//   Climatology:     https://noaadata.apps.nsidc.org/NOAA/G02135/north/daily/data/N_seaice_extent_climatology_1981-2010_v4.0.csv
 
 import { getText, SourceError } from "./http.js";
 
 const SOURCE = "NSIDC";
 
 const EXTENT_URL =
-  "https://noaadata.apps.nsidc.org/NOAA/G02135/north/daily/data/N_seaice_extent_daily_v3.0.csv";
+  "https://noaadata.apps.nsidc.org/NOAA/G02135/north/daily/data/N_seaice_extent_daily_v4.0.csv";
 
 const CLIM_URL =
-  "https://noaadata.apps.nsidc.org/NOAA/G02135/north/daily/data/N_seaice_extent_climatology_1981-2010_v3.0.csv";
+  "https://noaadata.apps.nsidc.org/NOAA/G02135/north/daily/data/N_seaice_extent_climatology_1981-2010_v4.0.csv";
 
 // Parse the raw extent CSV into row objects.
 // Header lines start with '#'. Data lines: Year,Month,Day,Extent,Missing,Source Data
