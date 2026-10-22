@@ -14,8 +14,9 @@ PLATFORM_DAILY_LIMIT = "10"
 FIRMS_SOURCE = "VIIRS_NOAA20_NRT"
 
 # Keep the risk matrix warm: each run refreshes the 3 stalest regions.
+# Daily brief: once a day at 04:00 UTC (07:00 East Africa Time).
 [triggers]
-crons = ["*/10 * * * *"]
+crons = ["*/10 * * * *", "0 4 * * *"]
 
 # KV namespaces. CI (scripts/ensure-kv.mjs) finds or creates
 # "zackscan-RISK_CACHE" / "zackscan-RATE_LIMIT" and fills in the ids before
@@ -27,6 +28,10 @@ id = "__RISK_CACHE_ID__"
 [[kv_namespaces]]
 binding = "RATE_LIMIT"
 id = "__RATE_LIMIT_ID__"
+
+[[kv_namespaces]]
+binding = "DAILY_BRIEF"
+id = "__DAILY_BRIEF_ID__"
 
 # Secrets (set by CI from GitHub repo secrets, never committed). All optional:
 #   PLATFORM_GEMINI_KEY  shared AI tier; without it only BYOK works

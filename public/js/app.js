@@ -31,8 +31,9 @@ import { REGION_LIST, REGION_IDS, regionName } from "./regions.js";
 import { getCustomProfiles, getCustomProfile } from "./custom-profiles.js";
 import { initProfileCreator } from "./profile-creator.js";
 import { PROFILES } from "./profiles.js";
-import { addRecentLocation } from "./geocode.js";
+import { addRecentLocation, getCurrentLocation } from "./geocode.js";
 import { fetchAndRenderSeaIce } from "./sea-ice-card.js";
+import { renderDailyBrief } from "./daily-brief-card.js";
 
 // ------------------------------------------------------------ profile bar (header)
 // Nothing about the operator is hardcoded: mission, name, organization and
@@ -87,14 +88,19 @@ navigator.serviceWorker?.addEventListener("controllerchange", renderProfileBar);
 // wxLocation is either { id } for a watchlist city or { id, name, lat, lon, custom:true }
 // for a searched city. Only the weather panel follows this; the risk matrix always
 // shows all 6 watchlist cities regardless of what's searched here.
-let wxLocation = getOperator().homeLocation || { id: getOperator().homeRegion };
+const _op0 = getOperator();
+let wxLocation =
+  _op0.homeLocation || (_op0.homeRegion ? { id: _op0.homeRegion } : null);
 let wxWeatherCache = null; // { id, data } — avoids re-fetching on matrix refreshes
 
 function onWeatherSelect(loc) {
   // loc is a location object from the combobox (pinned or searched)
   wxLocation = typeof loc === "string" ? { id: loc } : loc;
   wxWeatherCache = null;
-  if (wxLocation.custom) addRecentLocation(wxLocation);
+  // Add to recent if it's a custom location (has coordinates and not in watchlist)
+  if (wxLocation.lat != null && !REGION_IDS.includes(wxLocation.id)) {
+    addRecentLocation({ ...wxLocation, custom: true });
+  }
   drawWeather();
 }
 
@@ -102,7 +108,19 @@ async function drawWeather() {
   const el = document.querySelector("#weather");
   if (!el) return;
   const loc = wxLocation;
-  if (loc.custom) {
+  if (!loc) {
+    // No home location set yet — show picker with hint.
+    renderWeather(
+      el,
+      { region: { id: "", name: "" }, ready: false },
+      { onRegion: onWeatherSelect },
+    );
+    return;
+  }
+  // Determine if this is a custom location by checking if it has lat/lon OR if it's not in watchlist
+  const isCustom =
+    loc.custom || (loc.lat != null && !REGION_IDS.includes(loc.id));
+  if (isCustom && loc.lat != null && loc.lon != null) {
     // Non-watchlist city: fetch from /api/weather, cache until location changes.
     let data = wxWeatherCache?.id === loc.id ? wxWeatherCache.data : null;
     if (!data) {
@@ -121,11 +139,19 @@ async function drawWeather() {
     renderWeather(el, weatherTelemetryDirect(loc, data.weather), {
       onRegion: onWeatherSelect,
     });
-  } else {
+  } else if (REGION_IDS.includes(loc.id)) {
+    // Watchlist city: get from matrix
     if (deck.matrix)
       renderWeather(el, weatherTelemetry(deck.matrix, loc.id), {
         onRegion: onWeatherSelect,
       });
+  } else {
+    // Location without coordinates — can't fetch weather
+    renderWeather(
+      el,
+      { region: loc, ready: false },
+      { onRegion: onWeatherSelect },
+    );
   }
 }
 
@@ -610,6 +636,10 @@ document.querySelector("#profile").addEventListener("change", renderProfileBar);
 document.querySelector("#settings").addEventListener("close", renderProfileBar);
 document.querySelector("#alarms").addEventListener("close", renderProfileBar);
 renderProfileBar();
+
+// ------------------------------------------------------------ daily brief
+const briefContainer = document.querySelector("#daily-brief");
+if (briefContainer) renderDailyBrief(briefContainer);
 
 // ------------------------------------------------------------ sea ice card
 fetchAndRenderSeaIce();

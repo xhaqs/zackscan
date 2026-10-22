@@ -54,6 +54,11 @@
     </div>
 
     <main>
+      <section class="wide" aria-labelledby="brief-h">
+        <h2 id="brief-h">Daily brief</h2>
+        <div id="daily-brief"><p class="meta">Loading…</p></div>
+      </section>
+
       <section class="wide" aria-labelledby="wx-h">
         <h2 id="wx-h">Today's weather</h2>
         <div id="weather" class="wx"><p class="meta">Loading…</p></div>
@@ -221,7 +226,7 @@
               id="creator-desc"
               rows="4"
               maxlength="500"
-              placeholder='e.g. "I&apos;m a fire agency monitoring wildfire spread near settlements in Northern California"'
+              placeholder="Describe what you're monitoring…"
             ></textarea>
           </label>
           <p class="err" id="creator-error"></p>
@@ -232,7 +237,7 @@
           </div>
         </div>
         <div id="creator-preview" hidden></div>
-        <div id="creator-save-row" class="row" hidden style="margin-top: 4px">
+        <div id="creator-save-row" class="row is-hidden">
           <button id="creator-save" type="button">Save Profile</button>
           <button
             id="creator-edit"

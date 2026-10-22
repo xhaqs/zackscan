@@ -25,6 +25,8 @@ import { makeStore } from "./risk/store.js";
 import { handleAlerts, runAlertSweep } from "./routes/alerts.js";
 import { getDispersion, getHeatGrid } from "./risk/grids.js";
 import { getRegion } from "./risk/regions.js";
+import { getBrief, refreshBrief } from "./routes/brief.js";
+import { runDailyBrief } from "./brief/cron.js";
 
 const MAX_BODY = 4 * 1024;
 const analyze = withAiRoute(handleAnalyze, { lazy: true });
@@ -61,6 +63,10 @@ export default {
     if (route === "GET /api/weather") return handleWeather(request, env);
 
     if (route === "GET /api/seaice") return handleSeaIce(request, env);
+
+    if (route === "GET /api/brief") return getBrief(env);
+
+    if (route === "POST /api/brief") return refreshBrief(request, env);
 
     if (route === "GET /api/health") {
       const cron = await makeStore(env).get("cron:last");
@@ -170,43 +176,80 @@ export default {
   },
 
   // Cron (wrangler.toml): keep the risk matrix warm, a few regions per run.
+  // Daily brief: once a day at 04:00 UTC.
   // Every run leaves a heartbeat in KV, so /api/health can show whether the
   // cron is actually firing without needing access to the Worker's logs.
   async scheduled(event, env, ctx) {
     const store = makeStore(env);
     const startedAt = new Date().toISOString();
-    ctx.waitUntil(
-      (async () => {
-        await store.put("cron:last", {
-          startedAt,
-          cron: event.cron,
-          state: "running",
-        });
-        try {
-          const refreshed = await refreshStalest(env, { store });
-          // Then check every device's alarm rules against the fresh data.
-          const alerts = await runAlertSweep(env, { store }).catch((e) => ({
-            error: String(e?.message || e),
-          }));
+
+    // The daily brief cron is "0 4 * * *", the matrix refresh is "*/10 * * * *"
+    const isDailyBrief = event.cron === "0 4 * * *";
+
+    if (isDailyBrief) {
+      // Daily brief job
+      ctx.waitUntil(
+        (async () => {
+          await store.put("cron:brief:last", {
+            startedAt,
+            cron: event.cron,
+            state: "running",
+          });
+          try {
+            const result = await runDailyBrief(env, { store });
+            await store.put("cron:brief:last", {
+              startedAt,
+              finishedAt: new Date().toISOString(),
+              cron: event.cron,
+              state: result.ok ? "ok" : "error",
+              ...result,
+            });
+          } catch (e) {
+            await store.put("cron:brief:last", {
+              startedAt,
+              finishedAt: new Date().toISOString(),
+              cron: event.cron,
+              state: "error",
+              error: String(e?.message || e),
+            });
+          }
+        })(),
+      );
+    } else {
+      // Risk matrix refresh job
+      ctx.waitUntil(
+        (async () => {
           await store.put("cron:last", {
             startedAt,
-            finishedAt: new Date().toISOString(),
             cron: event.cron,
-            state: "ok",
-            refreshed,
-            alerts,
+            state: "running",
           });
-        } catch (e) {
-          await store.put("cron:last", {
-            startedAt,
-            finishedAt: new Date().toISOString(),
-            cron: event.cron,
-            state: "error",
-            error: String(e?.message || e),
-          });
-        }
-      })(),
-    );
+          try {
+            const refreshed = await refreshStalest(env, { store });
+            // Then check every device's alarm rules against the fresh data.
+            const alerts = await runAlertSweep(env, { store }).catch((e) => ({
+              error: String(e?.message || e),
+            }));
+            await store.put("cron:last", {
+              startedAt,
+              finishedAt: new Date().toISOString(),
+              cron: event.cron,
+              state: "ok",
+              refreshed,
+              alerts,
+            });
+          } catch (e) {
+            await store.put("cron:last", {
+              startedAt,
+              finishedAt: new Date().toISOString(),
+              cron: event.cron,
+              state: "error",
+              error: String(e?.message || e),
+            });
+          }
+        })(),
+      );
+    }
   },
 };
 

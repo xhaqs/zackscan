@@ -171,6 +171,9 @@ dialog .check {
   gap: 8px;
   flex-wrap: wrap;
 }
+.is-hidden {
+  display: none !important;
+}
 
 /* Risk matrix. Level is always written out too, never shown by colour alone. */
 :root {
@@ -1191,9 +1194,82 @@ dialog textarea {
 #profile-creator .sheet-body {
   max-width: 520px;
 }
-#creator-save-row:not([hidden]) {
+#creator-save-row:not(.is-hidden) {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
   align-items: center;
+  margin-top: 16px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+#creator-save-row:not(.is-hidden) button {
+  min-height: 44px;
+}
+@media (max-width: 480px) {
+  #creator-save-row:not(.is-hidden) button {
+    flex: 1 1 100%;
+  }
+}
+#creator-input-row:not(.is-hidden) .row {
+  margin-top: 8px;
+}
+
+/* ------------------------------------------------------------ Daily brief */
+.brief-card {
+  padding: 16px;
+  background: var(--surface);
+  border-radius: 4px;
+  border-left: 4px solid var(--accent);
+}
+.brief-placeholder {
+  border-left-color: var(--muted);
+}
+.brief-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.brief-meta,
+.brief-sources {
+  margin: 0;
+}
+.brief-text p {
+  margin: 0 0 12px 0;
+  line-height: 1.6;
+}
+.brief-text p:last-child {
+  margin-bottom: 0;
+}
+.brief-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--accent-soft);
+}
+.brief-label {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-style: italic;
+}
+.brief-refresh {
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.brief-refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
