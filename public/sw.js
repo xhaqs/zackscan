@@ -37,6 +37,7 @@ const SHELL_FILES = [
   "/js/briefing.js",
   "/js/charts.js",
   "/js/anomaly-card.js",
+  "/js/daily-brief-card.js",
   "/js/anomaly-deck.js",
   "/js/grid-map.js",
   "/js/map-sheet.js",
