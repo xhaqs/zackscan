@@ -7,7 +7,7 @@
 // server-side accounts. The header's capability chips instead report what
 // this device can actually do (own AI key, background alerts, offline).
 
-import { REGION_IDS } from "./regions.js";
+import { REGION_IDS, REGION_LIST } from "./regions.js";
 
 const KEY = "zackscan.operator";
 export const ROLES = Object.freeze({
@@ -19,8 +19,8 @@ const EMPTY = {
   name: "",
   organization: "",
   role: "public",
-  homeRegion: "nairobi",
-  homeLocation: { id: "nairobi" },
+  homeRegion: null,
+  homeLocation: null,
 };
 
 const clean = (s, max = 60) =>
@@ -35,17 +35,30 @@ export function getOperator() {
     // Derive homeRegion from homeLocation if present, otherwise fall back to
     // the stored homeRegion string (backward compat).
     let homeLocation = v.homeLocation || null;
-    let homeRegion = REGION_IDS.includes(v.homeRegion)
-      ? v.homeRegion
-      : EMPTY.homeRegion;
+    let homeRegion = REGION_IDS.includes(v.homeRegion) ? v.homeRegion : null;
     if (homeLocation && typeof homeLocation === "object") {
       // Stored homeLocation takes precedence; derive homeRegion from it.
-      homeRegion = REGION_IDS.includes(homeLocation.id)
-        ? homeLocation.id
-        : homeRegion;
-    } else {
+      if (REGION_IDS.includes(homeLocation.id)) homeRegion = homeLocation.id;
+      // Ensure the location object is preserved with all its properties
+      homeLocation = {
+        id: homeLocation.id,
+        name: homeLocation.name,
+        lat: homeLocation.lat,
+        lon: homeLocation.lon,
+        custom: homeLocation.custom,
+      };
+    } else if (homeRegion) {
       // Backward compat: synthesize homeLocation from homeRegion string.
-      homeLocation = { id: homeRegion };
+      // Import regionName to get the proper name for watchlist cities
+      const regionObj = REGION_LIST.find((r) => r.id === homeRegion);
+      homeLocation = regionObj
+        ? {
+            id: regionObj.id,
+            name: regionObj.name,
+            lat: regionObj.lat,
+            lon: regionObj.lon,
+          }
+        : { id: homeRegion };
     }
     return {
       name: clean(v.name),
@@ -74,7 +87,16 @@ export function setOperator(patch) {
     homeRegion = REGION_IDS.includes(patch.homeRegion)
       ? patch.homeRegion
       : current.homeRegion;
-    homeLocation = { id: homeRegion };
+    // Rebuild location object with full details for watchlist cities
+    const regionObj = REGION_LIST.find((r) => r.id === homeRegion);
+    homeLocation = regionObj
+      ? {
+          id: regionObj.id,
+          name: regionObj.name,
+          lat: regionObj.lat,
+          lon: regionObj.lon,
+        }
+      : { id: homeRegion };
   }
   const v = {
     name: clean(next.name),

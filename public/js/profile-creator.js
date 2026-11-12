@@ -10,6 +10,17 @@ import {
   newCustomId,
 } from "./custom-profiles.js";
 
+const EXAMPLES = [
+  "I'm a disaster response coordinator monitoring cyclone tracks approaching Bangladesh's coastal districts",
+  "Flood early-warning team tracking river gauge levels and rainfall upstream in the Mekong Delta",
+  "Wildfire operations center watching fire weather conditions across the Australian New South Wales bush",
+  "Locust control officer monitoring swarm movements and breeding conditions across the Horn of Africa",
+  "Volcano observatory tracking seismic swarms and SO₂ emissions at Merapi, Indonesia",
+  "Arctic research station monitoring sea ice retreat and polar weather extremes near Svalbard",
+  "Public health agency tracking heat-wave risk for elderly populations in Southern Europe",
+  "Aid logistics coordinator monitoring road accessibility and flood risk in South Sudan during the rainy season",
+];
+
 const POLL_LABELS = {
   30000: "30 s",
   60000: "1 min",
@@ -65,19 +76,29 @@ export function initProfileCreator({ onSaved }) {
 
   let pending = null; // last interpreted result
 
+  function setStep(step) {
+    // step 1: input visible, save row hidden
+    // step 2: preview + save row visible, input hidden
+    inputRow.classList.toggle("is-hidden", step !== 1);
+    saveRow.classList.toggle("is-hidden", step !== 2);
+    previewEl.hidden = step !== 2;
+  }
+
   function reset() {
     pending = null;
-    previewEl.hidden = true;
-    saveRow.hidden = true;
-    inputRow.hidden = false;
+    setStep(1);
     descEl.disabled = false;
     interpretBtn.disabled = false;
     interpretBtn.textContent = "Interpret with AI →";
     errorEl.textContent = "";
     previewEl.innerHTML = "";
+    // Set a rotating example each time the dialog opens.
+    descEl.placeholder = EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)];
   }
 
   dialog.addEventListener("close", reset);
+  dialog.addEventListener("show", reset);
+  reset(); // initialize placeholder + step on load
 
   interpretBtn.addEventListener("click", async () => {
     const description = descEl.value.trim();
@@ -101,9 +122,7 @@ export function initProfileCreator({ onSaved }) {
       const result = await api.interpretProfile(description);
       pending = { interpreted: result, description };
       renderPreview(previewEl, result);
-      previewEl.hidden = false;
-      saveRow.hidden = false;
-      inputRow.hidden = true;
+      setStep(2);
     } catch (e) {
       errorEl.textContent =
         e.message || "The AI couldn't interpret that. Try rephrasing.";
@@ -120,9 +139,7 @@ export function initProfileCreator({ onSaved }) {
   });
 
   editBtn.addEventListener("click", () => {
-    previewEl.hidden = true;
-    saveRow.hidden = true;
-    inputRow.hidden = false;
+    setStep(1);
     descEl.disabled = false;
     interpretBtn.disabled = false;
     interpretBtn.textContent = "Interpret with AI →";

@@ -8,7 +8,7 @@
 
 import { divergingColor } from "./charts.js";
 import { ageLabel } from "./offline-logic.js";
-import { REGION_LIST, REGION_IDS } from "./regions.js";
+import { REGION_IDS } from "./regions.js";
 import { searchLocations, getRecentLocations } from "./geocode.js";
 
 const sig = (z) => `${z > 0 ? "+" : z < 0 ? "−" : ""}${Math.abs(z)}σ`;
@@ -94,11 +94,14 @@ export function buildPicker(currentLoc, onSelect) {
   input.className = "wx-search-input";
   input.autocomplete = "off";
   input.spellcheck = false;
+  input.name = "location-search";
   input.setAttribute("role", "combobox");
   input.setAttribute("aria-expanded", "false");
   input.setAttribute("aria-haspopup", "listbox");
   input.setAttribute("aria-label", "Weather location");
-  input.placeholder = "Search any city or place…";
+  input.setAttribute("data-1p-ignore", "");
+  input.setAttribute("data-lpignore", "true");
+  input.placeholder = currentLoc.name || "Search any city or place…";
   input.value = currentLoc.name || "";
 
   const hint = document.createElement("span");
@@ -156,13 +159,25 @@ export function buildPicker(currentLoc, onSelect) {
 
   function showDefault() {
     activeSearch = null;
-    const recent = getRecentLocations().filter(
-      (r) => !REGION_IDS.includes(r.id),
-    );
-    populate([
-      { label: "Quick picks", items: REGION_LIST },
+    const recent = getRecentLocations().filter((r) => r.id !== currentLoc?.id);
+    // Show the current location at the top so the user can always navigate back.
+    const pinned =
+      currentLoc?.name && currentLoc?.lat != null ? [currentLoc] : [];
+    const groups = [
+      ...(pinned.length ? [{ label: "Your location", items: pinned }] : []),
       ...(recent.length ? [{ label: "Recent", items: recent }] : []),
-    ]);
+    ];
+    if (groups.length === 0) {
+      list.innerHTML = "";
+      const tip = document.createElement("div");
+      tip.className = "wx-group-label";
+      tip.textContent = "Type any city or place to search";
+      list.append(tip);
+      list.hidden = false;
+      input.setAttribute("aria-expanded", "true");
+      return;
+    }
+    populate(groups);
   }
 
   async function search(q, { autoSelect = false } = {}) {
@@ -286,10 +301,7 @@ export function renderWeather(el, t, { onRegion } = {}) {
 
   const currentLoc = t.region?.name
     ? t.region
-    : REGION_LIST.find((r) => r.id === t.region?.id) || {
-        id: t.region?.id,
-        name: t.region?.id || "",
-      };
+    : { id: t.region?.id, name: t.region?.id || "" };
 
   const head = document.createElement("div");
   head.className = "wx-head";
@@ -299,8 +311,10 @@ export function renderWeather(el, t, { onRegion } = {}) {
   if (!t.ready) {
     const p = document.createElement("p");
     p.className = "meta";
-    p.textContent =
-      "Today's weather for this place isn't available yet. It appears with the next data refresh.";
+    const hasLocation = currentLoc.name && currentLoc.name !== "";
+    p.textContent = hasLocation
+      ? `Loading weather for ${currentLoc.name}… If this persists, try selecting a different location.`
+      : "Select a location above to see today's weather.";
     el.append(p);
     return;
   }

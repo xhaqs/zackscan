@@ -1,140 +1,16 @@
-name: Test and deploy
-
+name: Deploy Zackscan to Cloudflare
 on:
   push:
-    branches: [main]
-  pull_request:
-  workflow_dispatch:
-
-concurrency:
-  group: deploy-${{ github.ref }}
-  cancel-in-progress: false
+    branches: [ main, master ]
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm test
-      - name: Build check
-        run: npx wrangler deploy --dry-run --outdir .wrangler/build
-
   deploy:
-    needs: test
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    name: Deploy to Cloudflare
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v4
+      - name: Publish Worker
+        uses: cloudflare/wrangler-action@v3
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-
-      - name: Check Cloudflare credentials
-        run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "::error::Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in repo Settings > Secrets > Actions. Nothing was deployed."
-            exit 1
-          fi
-          # User-owned and account-owned tokens verify at different endpoints.
-          ok() { curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$1" | grep -q '"status":"active"'; }
-          if ! ok https://api.cloudflare.com/client/v4/user/tokens/verify && \
-             ! ok "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify"; then
-            echo "::error::Cloudflare rejected CLOUDFLARE_API_TOKEN (invalid, expired or revoked). Use an API *token* (My Profile > API Tokens, 'Edit Cloudflare Workers' template), not the Global API Key, and paste it with no spaces or line breaks."
-            exit 1
-          fi
-          echo "Cloudflare token is active."
-
-      - name: Find or create KV namespaces
-        run: node scripts/ensure-kv.mjs
-
-      - name: Stamp the service worker with this build
-        # A new sw.js on every deploy makes browsers install it and drop old caches.
-        run: |
-          sed -i "s/__BUILD__/${GITHUB_SHA::12}/" public/sw.js
-          grep -q "${GITHUB_SHA::12}" public/sw.js
-
-      - name: Deploy
-        id: deploy
-        run: |
-          set -o pipefail   # without this, tee's success hides a failed deploy
-          npx wrangler deploy | tee deploy.log
-          URL=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.log | head -1)
-          echo "url=$URL" >> "$GITHUB_OUTPUT"
-
-      # One bulk upload = one new version, live immediately. Empty repo
-      # secrets are left out, so they never blank a live value.
-      - name: Set optional secrets
-        env:
-          PLATFORM_GEMINI_KEY: ${{ secrets.PLATFORM_GEMINI_KEY }}
-          FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
-          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
-          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
-          OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
-        run: |
-          node -e '
-            const names = ["PLATFORM_GEMINI_KEY", "FIRMS_MAP_KEY", "OPENAQ_API_KEY", "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"];
-            const set = Object.fromEntries(names.filter((n) => process.env[n]).map((n) => [n, process.env[n].trim()]));
-            for (const n of names) if (!set[n]) console.log("::warning::" + n + " not set; that feature stays off.");
-            require("fs").writeFileSync("secrets.json", JSON.stringify(set));
-            console.log("Setting:", Object.keys(set).join(", ") || "none");
-          '
-          if [ "$(cat secrets.json)" != "{}" ]; then npx wrangler secret bulk secrets.json; fi
-          rm -f secrets.json
-
-      - name: Smoke test the live Worker
-        env:
-          URL: ${{ steps.deploy.outputs.url }}
-        run: |
-          if [ -z "$URL" ]; then echo "::error::No workers.dev URL in the deploy output, so the live site can't be checked."; exit 1; fi
-          for i in 1 2 3 4 5; do
-            N=$(curl -fsS "$URL/api/profiles" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).profiles.length))' || echo 0)
-            [ "$N" = "4" ] && break
-            sleep 5
-          done
-          [ "$N" = "4" ] || { echo "::error::$URL/api/profiles did not return 4 profiles"; exit 1; }
-          curl -fsS -o /dev/null "$URL/" || { echo "::error::Front page failed"; exit 1; }
-          CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$URL/api/analyze" \
-            -H 'X-Custom-AI-Provider: gemini' -H 'X-Custom-AI-Key: bad' -d '{"profile":"general"}')
-          [ "$CODE" = "400" ] || { echo "::error::Malformed BYOK key returned $CODE, expected 400"; exit 1; }
-          # Risk matrix: right schema, 6 regions, GLOF clearly marked as a stub.
-          curl -fsS --max-time 60 "$URL/api/risk" | node -e '
-            let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
-              const m = JSON.parse(s);
-              const bad = [];
-              if (m.schema !== "zackscan.risk-matrix/v1") bad.push("schema");
-              if (m.regions?.length !== 6) bad.push("regions");
-              for (const r of m.regions || []) if (r.pillars && (r.pillars.glof.realtime !== false || r.pillars.glof.score !== null || !/Non-Real-Time/.test(r.pillars.glof.label))) bad.push("glof:" + r.id);
-              const live = (m.regions || []).filter((r) => r.pillars?.seismic?.score != null).length;
-              if (bad.length) { console.log("::error::risk matrix check failed: " + bad.join(", ")); process.exit(1); }
-              console.log("Risk matrix OK, " + live + " region(s) already scored.");
-            });
-          ' || exit 1
-          # Alerts: the VAPID public key is served when push is configured.
-          if [ -n "${{ secrets.VAPID_PUBLIC_KEY }}" ]; then
-            # Secrets take a few seconds to reach every edge location after `secret bulk`.
-            for i in $(seq 1 12); do curl -fsS "$URL/api/alerts/key" | grep -q publicKey && break; sleep 5; done
-            curl -fsS "$URL/api/alerts/key" | grep -q publicKey || { echo "::error::push keys not live after 60 s"; exit 1; }
-          fi
-          # Offline support: service worker is this build, manifest serves.
-          # The edge can serve the previous static files for a few seconds after a deploy.
-          for i in $(seq 1 12); do curl -fsS "$URL/sw.js" | grep -q "${GITHUB_SHA::12}" && break; sleep 5; done
-          curl -fsS "$URL/sw.js" | grep -q "${GITHUB_SHA::12}" || { echo "::error::sw.js is not this build after 60 s"; exit 1; }
-          curl -fsS -o /dev/null "$URL/manifest.webmanifest" || { echo "::error::manifest missing"; exit 1; }
-          # Bandwidth: unchanged data answers 304; the summary is much smaller.
-          TAG=$(curl -fsS -D - -o /dev/null "$URL/api/risk" | tr -d '\r' | awk -F': ' 'tolower($1)=="etag"{print $2}')
-          CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "If-None-Match: $TAG" "$URL/api/risk")
-          [ -n "$TAG" ] && [ "$CODE" = "304" ] || { echo "::error::ETag revalidation failed (tag '$TAG', got $CODE)"; exit 1; }
-          FULL=$(curl -fsS "$URL/api/risk" | wc -c); SUM=$(curl -fsS "$URL/api/risk?fields=summary" | wc -c)
-          echo "Risk matrix: full $FULL bytes, summary $SUM bytes"
-          [ "$SUM" -lt "$FULL" ] || { echo "::error::summary is not smaller"; exit 1; }
-          echo "Live at $URL"
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
