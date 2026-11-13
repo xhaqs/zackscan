@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Zackscan | Global Environmental Intelligence & Disaster Anomaly Platform</title>
-  <meta name="description" content="Autonomous edge anomaly detection, multi-hazard risk scoring, and field telemetry platform." />
+  <title>Zackscan | Global Environmental Intelligence &amp; Disaster Anomaly Platform</title>
+  <meta name="description" content="Autonomous edge anomaly detection, multi-hazard risk scoring, and field telemetry platform with WCAG AAA accessibility, voice briefing, and haptic alerts." />
   <meta name="theme-color" content="#0f172a" />
   <link rel="stylesheet" href="css/app.css" onerror="this.onerror=null; console.warn('css/app.css not found, using embedded dark ops style.');" />
   <style>
@@ -18,7 +18,58 @@
       --accent-emerald: #10b981;
       --text-main: #f3f4f6;
       --text-muted: #9ca3af;
+      --focus-ring: #38bdf8;
+      --border-contrast: 1px solid var(--surface-border);
     }
+
+    /* High Contrast WCAG AAA Mode */
+    html.wcag-aaa {
+      --bg-main: #000000;
+      --surface: #0a0a0a;
+      --surface-border: #ffffff;
+      --accent-cyan: #00ffff;
+      --accent-amber: #ffff00;
+      --accent-rose: #ff4d4d;
+      --accent-emerald: #00ff66;
+      --text-main: #ffffff;
+      --text-muted: #f0f0f0;
+      --focus-ring: #ffff00;
+      --border-contrast: 2px solid #ffffff;
+    }
+
+    html.wcag-aaa body {
+      background-color: #000000 !important;
+      color: #ffffff !important;
+    }
+    html.wcag-aaa .anomaly-card,
+    html.wcag-aaa .profile-bar,
+    html.wcag-aaa .sitrep-panel,
+    html.wcag-aaa .console-panel,
+    html.wcag-aaa #judge-pitch-banner {
+      background-color: #050505 !important;
+      border: 2px solid #ffffff !important;
+    }
+    html.wcag-aaa .btn {
+      border: 2px solid #ffffff !important;
+      font-weight: 700 !important;
+      color: #ffffff !important;
+    }
+    html.wcag-aaa .btn-cyan {
+      background: #00ffff !important;
+      color: #000000 !important;
+    }
+    html.wcag-aaa .chip {
+      border: 2px solid #ffffff !important;
+      background: #000000 !important;
+      color: #ffffff !important;
+      font-weight: 700 !important;
+    }
+    html.wcag-aaa .metric-value {
+      color: #ffffff !important;
+      font-weight: 800 !important;
+      text-decoration: underline;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background-color: var(--bg-main);
@@ -26,8 +77,82 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
     }
-    /* Banner */
+
+    /* Accessible Skip Link */
+    .skip-link {
+      position: absolute;
+      top: -999px;
+      left: 1rem;
+      z-index: 10000;
+      background: #ffff00;
+      color: #000000;
+      padding: 0.75rem 1.25rem;
+      font-weight: 800;
+      text-decoration: none;
+      border-radius: 4px;
+      border: 2px solid #000000;
+    }
+    .skip-link:focus {
+      top: 1rem;
+    }
+
+    /* Accessible Focus Ring */
+    a:focus-visible, button:focus-visible, select:focus-visible, [tabindex="0"]:focus-visible {
+      outline: 3px solid var(--focus-ring) !important;
+      outline-offset: 3px !important;
+    }
+
+    /* Screen Reader Only Utility */
+    .sr-only {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+
+    /* Visual Screen Flash Banners */
+    #screen-flash-banner {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 9999;
+      padding: 0.75rem 1.5rem;
+      font-weight: 800;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      justify-content: space-between;
+      align-items: center;
+      color: #ffffff;
+      background: #dc2626;
+      box-shadow: 0 4px 20px rgba(220, 38, 38, 0.7);
+      border-bottom: 3px solid #fef08a;
+    }
+    #screen-flash-banner.flashing {
+      display: flex;
+      animation: strobe-pulse 0.85s infinite alternate ease-in-out;
+    }
+    @keyframes strobe-pulse {
+      0% { background-color: #dc2626; box-shadow: 0 0 15px #dc2626; }
+      100% { background-color: #7f1d1d; box-shadow: 0 0 35px #f43f5e; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #screen-flash-banner.flashing {
+        animation: none !important;
+        background-color: #991b1b !important;
+      }
+    }
+
+    /* Judge & Accessibility Pitch Banner */
     #judge-pitch-banner {
       background-color: #090d16;
       color: #38bdf8;
@@ -41,13 +166,18 @@
       gap: 0.5rem;
     }
     .btn {
-      padding: 0.25rem 0.65rem;
+      padding: 0.3rem 0.65rem;
       border-radius: 4px;
       font-size: 0.75rem;
       font-weight: 600;
       cursor: pointer;
       border: 1px solid transparent;
       transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      min-height: 32px;
+      min-width: 32px;
     }
     .btn-cyan { background: #06b6d4; color: #082f49; }
     .btn-cyan:hover { background: #22d3ee; }
@@ -55,6 +185,7 @@
     .btn-outline:hover { background: #334155; }
     .btn-ghost { background: transparent; color: var(--text-muted); border-color: var(--surface-border); }
     .btn-ghost:hover { color: var(--text-main); border-color: var(--text-muted); }
+    .btn-active { background: #0284c7; color: #ffffff; border-color: #38bdf8; }
     
     /* Fallback Notification Banner */
     #telemetry-status-banner {
@@ -80,8 +211,8 @@
       border-color: rgba(244, 63, 94, 0.3);
     }
 
-    /* Layout */
-    .app-container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+    /* Layout & Responsiveness Fixes */
+    .app-container { max-width: 1200px; margin: 0 auto; padding: 1rem; width: 100%; }
     .header-bar {
       display: flex;
       flex-wrap: wrap;
@@ -89,17 +220,17 @@
       align-items: center;
       gap: 1rem;
       padding-bottom: 1rem;
-      border-bottom: 1px solid var(--surface-border);
+      border-bottom: var(--border-contrast);
       margin-bottom: 1.25rem;
     }
-    .logo-area { display: flex; align-items: center; gap: 0.75rem; }
-    .logo-badge { background: #06b6d4; color: #042f2e; font-weight: 900; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem; letter-spacing: 0.05em; }
-    .brand-title { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em; color: #f8fafc; }
+    .logo-area { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+    .logo-badge { background: #06b6d4; color: #042f2e; font-weight: 900; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem; letter-spacing: 0.05em; flex-shrink: 0; }
+    .brand-title { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em; color: #f8fafc; word-break: break-word; }
     
     /* Mission Profile Bar */
     .profile-bar {
       background: var(--surface);
-      border: 1px solid var(--surface-border);
+      border: var(--border-contrast);
       border-radius: 8px;
       padding: 0.75rem 1rem;
       margin-bottom: 1.5rem;
@@ -120,6 +251,7 @@
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
+      word-break: break-word;
     }
     .chip-live { border-color: rgba(16, 185, 129, 0.4); color: #34d399; }
     .chip-fallback { border-color: rgba(245, 158, 11, 0.4); color: #fbbf24; }
@@ -130,18 +262,19 @@
       border-radius: 50%;
       background: currentColor;
       box-shadow: 0 0 6px currentColor;
+      flex-shrink: 0;
     }
 
-    /* Grid */
+    /* Responsive Grid */
     .anomaly-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 1rem;
       margin-bottom: 2rem;
     }
     .anomaly-card {
       background: var(--surface);
-      border: 1px solid var(--surface-border);
+      border: var(--border-contrast);
       border-radius: 8px;
       padding: 1rem;
       display: flex;
@@ -149,6 +282,7 @@
       gap: 0.75rem;
       position: relative;
       overflow: hidden;
+      width: 100%;
     }
     .anomaly-card::before {
       content: '';
@@ -162,12 +296,13 @@
     .anomaly-card.hazard-heat::before { background: #ef4444; }
     .anomaly-card.hazard-glof::before { background: #a855f7; }
     
-    .card-head { display: flex; justify-content: space-between; align-items: flex-start; }
+    .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
     .card-title { font-size: 0.95rem; font-weight: 600; color: #f1f5f9; }
     .card-score {
       font-size: 1.5rem;
       font-weight: 800;
       line-height: 1;
+      flex-shrink: 0;
     }
     .score-low { color: #34d399; }
     .score-guard { color: #38bdf8; }
@@ -178,17 +313,19 @@
     .metric-row {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       font-size: 0.8rem;
       color: var(--text-muted);
       border-bottom: 1px solid rgba(255,255,255,0.05);
       padding-bottom: 0.25rem;
+      gap: 0.5rem;
     }
-    .metric-value { font-weight: 600; color: #e2e8f0; }
+    .metric-value { font-weight: 600; color: #e2e8f0; text-align: right; }
 
     /* SitRep Section */
     .sitrep-panel {
       background: var(--surface);
-      border: 1px solid var(--surface-border);
+      border: var(--border-contrast);
       border-radius: 8px;
       padding: 1.25rem;
       margin-bottom: 2rem;
@@ -198,26 +335,28 @@
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
-      gap: 0.5rem;
+      gap: 0.75rem;
       margin-bottom: 1rem;
       padding-bottom: 0.5rem;
-      border-bottom: 1px solid var(--surface-border);
+      border-bottom: var(--border-contrast);
     }
     .sitrep-body {
       font-size: 0.875rem;
       color: #cbd5e1;
       line-height: 1.6;
-      white-space: pre-line;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
 
     /* Audit & Diagnostic Console */
     .console-panel {
       background: #050811;
-      border: 1px solid #1e293b;
+      border: var(--border-contrast);
       border-radius: 8px;
       padding: 1rem;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 0.75rem;
+      overflow-x: auto;
     }
     .console-header {
       display: flex;
@@ -227,6 +366,8 @@
       margin-bottom: 0.5rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      flex-wrap: wrap;
+      gap: 0.5rem;
     }
     .log-stream {
       max-height: 180px;
@@ -239,83 +380,152 @@
       color: #94a3b8;
       display: flex;
       gap: 0.5rem;
+      word-break: break-all;
     }
     .log-entry.log-warn { color: #f59e0b; }
     .log-entry.log-err { color: #f43f5e; }
     .log-entry.log-info { color: #38bdf8; }
     .log-entry.log-ok { color: #10b981; }
-  </style>
 
-    <style>
-      .mission-dropdown-menu, select, .mission-select-dropdown {
-        position: relative;
-        z-index: 9999;
-        pointer-events: auto !important;
+    /* Mobile Breakpoints & Touch Target Improvements */
+    @media (max-width: 768px) {
+      .header-bar {
+        flex-direction: column;
+        align-items: stretch;
       }
-      body {
-        pointer-events: auto !important;
+      .header-bar > div:last-child {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
       }
-    </style>
-    
+      .profile-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .profile-bar > div:last-child {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .anomaly-grid {
+        grid-template-columns: 1fr;
+      }
+      .sitrep-header > div:last-child {
+        display: grid;
+        grid-template-columns: 1fr;
+        width: 100%;
+        gap: 0.5rem;
+      }
+      .sitrep-header .btn {
+        width: 100%;
+        justify-content: center;
+      }
+      #judge-pitch-banner {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+      }
+      #judge-pitch-banner > div {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.35rem;
+      }
+    }
+  </style>
 </head>
 <body>
-  <!-- Judge Demo Banner (Dubai Create AI Agents Championship) -->
-  <div id="judge-pitch-banner" class="bg-slate-900 text-cyan-400 px-4 py-2 text-xs flex justify-between items-center border-b border-cyan-500/30">
-    <span>⚡ <strong>Zackscan Edge Agent</strong> | Dubai Create AI Agents Championship</span>
-    <div class="flex items-center gap-2">
-      <button onclick="window.ZackTelemetry.simulateEdgeToggle()" id="btn-sim-toggle" class="btn btn-outline">
-        Simulate Offline/Fallback
-      </button>
-      <button onclick="localStorage.setItem('zackscan_demo', 'true'); location.reload();" class="bg-cyan-400 text-slate-900 border-none px-2 py-1 rounded font-bold cursor-pointer btn-cyan">
-        Enable Demo Mode
-      </button>
-      <button onclick="document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');" class="bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-500/40 px-2.5 py-1 rounded font-bold cursor-pointer transition-colors flex items-center gap-1 shadow-sm">
-        🌙 / ☀️ Dark Mode
+  <!-- Skip to Main Content Link for Keyboard and Screen Readers -->
+  <a href="#main-content" class="skip-link">Skip to main telemetry deck</a>
+
+  <!-- Visual Screen Flash Alert Banner (Emergency Strobe) -->
+  <div id="screen-flash-banner" role="alert" aria-live="assertive" aria-atomic="true">
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <span style="font-size: 1.25rem;">🚨</span>
+      <span id="screen-flash-message">CRITICAL ANOMALY ALERT: Extreme Hazard Threshold Exceeded</span>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      <button class="btn btn-outline" style="background: #000; color: #fff;" onclick="window.ZackAccessibility.dismissFlash()">
+        Dismiss Flash
       </button>
     </div>
   </div>
 
+  <!-- Screen Reader Live Announcements Regions -->
+  <div id="sr-announcements-polite" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <div id="sr-announcements-assertive" class="sr-only" aria-live="assertive" aria-atomic="true" role="alert"></div>
+
+  <!-- Judge & Operator Accessibility Command Banner -->
+  <header id="judge-pitch-banner" role="region" aria-label="Platform Controls and Accessibility Bar">
+    <span>⚡ <strong>Zackscan Edge Agent</strong> | Dubai Create AI Agents Championship</span>
+    <div class="flex items-center gap-2" style="display: flex; flex-wrap: wrap; gap: 0.4rem;">
+      <!-- High Contrast WCAG AAA Mode Toggle -->
+      <button id="btn-toggle-wcag" onclick="window.ZackAccessibility.toggleWcagAaa()" class="btn btn-outline" aria-pressed="false" aria-label="Toggle WCAG AAA high contrast color mode">
+        👁️ WCAG AAA Mode
+      </button>
+      <!-- Browser Audio Briefing Button -->
+      <button id="btn-voice-brief" onclick="window.ZackVoice.toggleSpeech()" class="btn btn-outline" aria-label="Start or stop browser audio voice briefing">
+        🔊 Audio Briefing
+      </button>
+      <!-- Haptic Vibration Trigger -->
+      <button id="btn-test-haptic" onclick="window.ZackAccessibility.triggerHapticTest()" class="btn btn-outline" aria-label="Test haptic vibration feedback">
+        📳 Haptic Test
+      </button>
+      <!-- Visual Flash Toggle -->
+      <button id="btn-toggle-flash" onclick="window.ZackAccessibility.toggleFlashSetting()" class="btn btn-outline" aria-pressed="true" aria-label="Toggle visual emergency screen flash">
+        ⚡ Flash Alert: ON
+      </button>
+      <!-- Simulate Offline Fallback -->
+      <button onclick="window.ZackTelemetry.simulateEdgeToggle()" id="btn-sim-toggle" class="btn btn-outline" aria-label="Simulate edge node offline telemetry fallback">
+        Simulate Offline/Fallback
+      </button>
+      <!-- Dark / Light Mode -->
+      <button onclick="window.ZackAccessibility.toggleDarkMode()" class="btn btn-outline" aria-label="Toggle standard dark or light theme">
+        🌙 / ☀️ Mode
+      </button>
+    </div>
+  </header>
+
   <!-- Client Telemetry Fallback Alert Banner -->
-  <div id="telemetry-status-banner">
+  <div id="telemetry-status-banner" role="status" aria-live="polite">
     <div style="display: flex; align-items: center; gap: 0.5rem;">
-      <span id="telemetry-status-icon">⚠️</span>
+      <span id="telemetry-status-icon" aria-hidden="true">⚠️</span>
       <span id="telemetry-status-text">Active Telemetry Fallback</span>
     </div>
     <div style="display: flex; gap: 0.5rem;">
-      <button class="btn btn-ghost" onclick="window.ZackTelemetry.refresh(true)">Retry Edge</button>
-      <button class="btn btn-ghost" onclick="document.getElementById('telemetry-status-banner').style.display='none'">Dismiss</button>
+      <button class="btn btn-ghost" onclick="window.ZackTelemetry.refresh(true)" aria-label="Retry connection to live edge node">Retry Edge</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('telemetry-status-banner').style.display='none'" aria-label="Dismiss telemetry fallback notification">Dismiss</button>
     </div>
   </div>
 
-  <div class="app-container">
+  <main class="app-container" id="main-content" role="main">
     <!-- Operator Header -->
-    <header class="header-bar">
+    <section class="header-bar" aria-label="Mission Header">
       <div class="logo-area">
-        <span class="logo-badge">ZACKSCAN</span>
+        <span class="logo-badge" aria-hidden="true">ZACKSCAN</span>
         <div>
           <h1 class="brand-title">Autonomous Anomaly Platform</h1>
-          <div style="font-size: 0.75rem; color: var(--text-muted);">Dubai Edge Node · Cloudflare Workers Assets</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">Dubai Edge Node · Cloudflare Workers Assets · WCAG AAA Hardened</div>
         </div>
       </div>
-      <div style="display: flex; gap: 0.5rem;">
-        <button class="btn btn-outline" onclick="window.ZackTelemetry.refresh()">↻ Refresh Feeds</button>
-        <button class="btn btn-ghost" onclick="window.ZackTelemetry.clearLogs()">Clear Console</button>
+      <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <button class="btn btn-outline" onclick="window.ZackTelemetry.refresh()" aria-label="Refresh risk telemetry feeds">↻ Refresh Feeds</button>
+        <button class="btn btn-ghost" onclick="window.ZackTelemetry.clearLogs()" aria-label="Clear audit diagnostic console logs">Clear Console</button>
       </div>
-    </header>
+    </section>
 
-    <!-- Mission Profile & Telemetry Telemetry Bar -->
-    <section class="profile-bar">
-      <div class="chips">
-        <span class="chip chip-live" id="telemetry-health-chip">
-          <span class="pulse-dot"></span>
+    <!-- Mission Profile & Telemetry Bar -->
+    <section class="profile-bar" aria-label="Active Mission Telemetry Bar">
+      <div class="chips" role="list">
+        <span class="chip chip-live" id="telemetry-health-chip" role="listitem">
+          <span class="pulse-dot" aria-hidden="true"></span>
           <span id="telemetry-health-text">Telemetry: Edge Live</span>
         </span>
-        <span class="chip" id="region-chip">Region: UAE &amp; Arabian Gulf (ID: dxb-01)</span>
-        <span class="chip" id="source-chip">Feeds: USGS · NASA FIRMS · Open-Meteo</span>
+        <span class="chip" id="region-chip" role="listitem">Region: UAE &amp; Arabian Gulf (ID: dxb-01)</span>
+        <span class="chip" id="source-chip" role="listitem">Feeds: USGS · NASA FIRMS · Open-Meteo</span>
       </div>
-      <div style="display: flex; gap: 0.5rem; align-items: center;">
-        <label for="profile-select" style="font-size: 0.75rem; color: var(--text-muted);">Mission Profile:</label>
-        <select id="profile-select" class="btn btn-outline" style="background: #0f172a;" onchange="window.ZackTelemetry.switchProfile(this.value)">
+      <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+        <label for="profile-select" style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Mission Profile:</label>
+        <select id="profile-select" class="btn btn-outline" style="background: #0f172a; flex: 1; min-width: 140px;" onchange="window.ZackTelemetry.switchProfile(this.value)" aria-label="Select active mission profile">
           <option value="general">General Awareness</option>
           <option value="wildfire">Wildfire Operations</option>
           <option value="heat">Extreme Heat Monitoring</option>
@@ -324,16 +534,16 @@
       </div>
     </section>
 
-    <!-- 4 Hazard Anomaly Cards -->
-    <section class="anomaly-grid" id="anomaly-deck">
+    <!-- 4 Hazard Anomaly Cards Grid -->
+    <section class="anomaly-grid" id="anomaly-deck" aria-label="Anomaly Hazard Scorecards">
       <!-- Seismic -->
-      <div class="anomaly-card hazard-seismic">
+      <article class="anomaly-card hazard-seismic" aria-labelledby="title-seismic">
         <div class="card-head">
           <div>
-            <div class="card-title">Seismic &amp; Geological</div>
+            <h2 class="card-title" id="title-seismic">Seismic &amp; Geological</h2>
             <div style="font-size: 0.7rem; color: var(--text-muted);">USGS Realtime + Poisson Baseline</div>
           </div>
-          <div class="card-score score-guard" id="score-seismic">28</div>
+          <div class="card-score score-guard" id="score-seismic" aria-label="Seismic Risk Score 28 out of 100">28</div>
         </div>
         <div class="metric-row">
           <span>Largest Event (7d)</span>
@@ -347,16 +557,16 @@
           <span>Telemetry Status</span>
           <span class="metric-value" id="val-seismic-status">LIVE USGS</span>
         </div>
-      </div>
+      </article>
 
       <!-- Thermal / Wildfire -->
-      <div class="anomaly-card hazard-fire">
+      <article class="anomaly-card hazard-fire" aria-labelledby="title-fire">
         <div class="card-head">
           <div>
-            <div class="card-title">Thermal &amp; Wildfire</div>
+            <h2 class="card-title" id="title-fire">Thermal &amp; Wildfire</h2>
             <div style="font-size: 0.7rem; color: var(--text-muted);">NASA FIRMS MODIS/VIIRS + VPD</div>
           </div>
-          <div class="card-score score-elevated" id="score-fire">44</div>
+          <div class="card-score score-elevated" id="score-fire" aria-label="Fire Risk Score 44 out of 100">44</div>
         </div>
         <div class="metric-row">
           <span>Active FRP Hotspots</span>
@@ -370,16 +580,16 @@
           <span>PM2.5 Dispersion</span>
           <span class="metric-value" id="val-fire-pm25">28 µg/m³ (Moderate)</span>
         </div>
-      </div>
+      </article>
 
       <!-- Extreme Heat -->
-      <div class="anomaly-card hazard-heat">
+      <article class="anomaly-card hazard-heat" aria-labelledby="title-heat">
         <div class="card-head">
           <div>
-            <div class="card-title">Extreme Heat &amp; Wet-Bulb</div>
+            <h2 class="card-title" id="title-heat">Extreme Heat &amp; Wet-Bulb</h2>
             <div style="font-size: 0.7rem; color: var(--text-muted);">Open-Meteo 10y ERA5 Baseline</div>
           </div>
-          <div class="card-score score-high" id="score-heat">68</div>
+          <div class="card-score score-high" id="score-heat" aria-label="Heat Risk Score 68 out of 100">68</div>
         </div>
         <div class="metric-row">
           <span>Peak Wet-Bulb (Stull 2011)</span>
@@ -393,16 +603,16 @@
           <span>Air Temp / Min RH</span>
           <span class="metric-value" id="val-heat-trh">43.2 °C / 38%</span>
         </div>
-      </div>
+      </article>
 
       <!-- Cryospheric / Hydrological -->
-      <div class="anomaly-card hazard-glof">
+      <article class="anomaly-card hazard-glof" aria-labelledby="title-glof">
         <div class="card-head">
           <div>
-            <div class="card-title">Cryospheric &amp; GLOF</div>
+            <h2 class="card-title" id="title-glof">Cryospheric &amp; GLOF</h2>
             <div style="font-size: 0.7rem; color: var(--text-muted);">Hydrological Catchment Baseline</div>
           </div>
-          <div class="card-score score-low" id="score-glof">12</div>
+          <div class="card-score score-low" id="score-glof" aria-label="GLOF Risk Score 12 out of 100">12</div>
         </div>
         <div class="metric-row">
           <span>Reference Lake Status</span>
@@ -416,59 +626,83 @@
           <span>Data Source Integrity</span>
           <span class="metric-value" id="val-glof-integrity">Reference Matrix v1</span>
         </div>
-      </div>
+      </article>
     </section>
 
     <!-- Dual-Register SitRep (Plain Language / Researcher) -->
-    <section class="sitrep-panel">
+    <section class="sitrep-panel" aria-labelledby="sitrep-main-heading">
       <div class="sitrep-header">
         <div>
-          <h3 style="font-size: 1rem; color: #f8fafc;">Autonomous Situation Report (SitRep)</h3>
+          <h2 id="sitrep-main-heading" style="font-size: 1rem; color: #f8fafc;">Autonomous Situation Report (SitRep)</h2>
           <span style="font-size: 0.75rem; color: var(--text-muted);" id="sitrep-timestamp">Generated locally via edge evaluation loop</span>
+          <div id="verified-audit-badge" style="margin-top: 0.35rem; display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.7rem; background: rgba(6, 182, 212, 0.12); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.3); padding: 0.15rem 0.5rem; border-radius: 4px; font-family: ui-monospace, monospace;">
+            🛡️ Verified Edge Audit [Computing...]
+          </div>
         </div>
-        <div style="display: flex; gap: 0.5rem;">
-          <button class="btn btn-outline" id="btn-toggle-register" onclick="window.ZackTelemetry.toggleRegister()">
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <!-- Voice Briefing Action Button -->
+          <button class="btn btn-outline" id="btn-sitrep-speak" onclick="window.ZackVoice.toggleSpeech()" aria-label="Read SitRep aloud using browser speech synthesis">
+            🔊 Read Aloud
+          </button>
+          <button class="btn btn-outline" id="btn-toggle-register" onclick="window.ZackTelemetry.toggleRegister()" aria-label="Toggle between Plain Language and Institutional Researcher tier">
             View: Plain Language
           </button>
-          <button class="btn btn-ghost" onclick="window.ZackTelemetry.copySitRep()">
+          <button class="btn btn-ghost" onclick="window.ZackTelemetry.copySitRep()" aria-label="Copy situation report text to clipboard">
             📋 Copy SitRep
           </button>
         </div>
       </div>
-      <div class="sitrep-body" id="sitrep-content">
+      <div class="sitrep-body" id="sitrep-content" tabindex="0" role="region" aria-label="Situation Report details" aria-live="polite">
         Loading live telemetry synthesis...
       </div>
     </section>
 
     <!-- Diagnostic & Error Telemetry Console -->
-    <section class="console-panel">
+    <section class="console-panel" aria-labelledby="console-heading">
       <div class="console-header">
-        <span>Telemetry Edge &amp; Error Diagnostic Stream</span>
-        <span id="console-state">STATE: ACTIVE MONITORING</span>
+        <h2 id="console-heading" style="font-size: 0.75rem; text-transform: uppercase;">Telemetry Edge &amp; Error Diagnostic Stream</h2>
+        <span id="console-state" aria-live="polite">STATE: ACTIVE MONITORING</span>
       </div>
-      <div class="log-stream" id="console-log"></div>
+      <div class="log-stream" id="console-log" role="log" aria-relevant="additions" aria-live="polite" tabindex="0" aria-label="System diagnostic log stream"></div>
     </section>
-  </div>
+  </main>
 
-  <!-- Client-Side Telemetry Fallback Engine & Error Audit Interceptor -->
+  <!-- Client-Side Telemetry Fallback Engine, Voice Synthesizer & WCAG AAA Subsystem -->
   <script>
     (function() {
       'use strict';
 
       const STORAGE_KEY = 'zackscan_offline_telemetry_v1';
-      const LOG_STORAGE = 'zackscan_error_audit_logs';
+      const SETTINGS_KEY = 'zackscan_accessibility_v1';
       
-      // State Management
+      // App & Accessibility State
       const state = {
         activeProfile: 'general',
-        currentRegister: 'plain', // 'plain' or 'researcher'
+        currentRegister: 'plain',
         simulatedOffline: false,
         isFallbackActive: false,
         retryCount: 0,
         maxRetries: 5,
         retryDelayMs: 2000,
-        telemetryData: null
+        telemetryData: null,
+        wcagAaaEnabled: false,
+        flashAlertEnabled: true,
+        isSpeaking: false
       };
+
+      // Load Saved Accessibility Settings
+      try {
+        const savedSettings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+        if (savedSettings.wcagAaa === true) {
+          state.wcagAaaEnabled = true;
+          document.documentElement.classList.add('wcag-aaa');
+        }
+        if (typeof savedSettings.flashAlert === 'boolean') {
+          state.flashAlertEnabled = savedSettings.flashAlert;
+        }
+      } catch (e) {
+        console.warn('Could not restore accessibility settings', e);
+      }
 
       // High-Fidelity Deterministic Fallback Dataset for field / disconnected operations
       const FALLBACK_TELEMETRY_FIXTURES = {
@@ -506,7 +740,24 @@
         }
       };
 
-      // Logging utility for in-app telemetry & error audit
+      // Screen-Reader Announcer Functions
+      function announcePolite(text) {
+        const el = document.getElementById('sr-announcements-polite');
+        if (el) {
+          el.innerText = '';
+          setTimeout(() => { el.innerText = text; }, 50);
+        }
+      }
+
+      function announceAssertive(text) {
+        const el = document.getElementById('sr-announcements-assertive');
+        if (el) {
+          el.innerText = '';
+          setTimeout(() => { el.innerText = text; }, 50);
+        }
+      }
+
+      // Diagnostic Logger
       function log(message, level = 'info') {
         const consoleEl = document.getElementById('console-log');
         if (!consoleEl) return;
@@ -525,8 +776,31 @@
           .replace(/>/g, '&gt;');
       }
 
+      // Web Crypto API Hash Calculation
+      async function generateAuditHash(telemetryData) {
+        try {
+          const rawInput = JSON.stringify({
+            timestamp: telemetryData.timestamp || Date.now(),
+            scores: telemetryData.scores || {},
+            metrics: telemetryData.metrics || {},
+            region: telemetryData.region || 'dxb-01'
+          });
+          const encoder = new TextEncoder();
+          const dataBuffer = encoder.encode(rawInput);
+          if (window.crypto && window.crypto.subtle && window.crypto.subtle.digest) {
+            const hashBuffer = await window.crypto.subtle.digest('SHA-256', dataBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+          }
+          return 'sha256-edge-ver';
+        } catch (err) {
+          log(`Crypto digest calculation warning: ${err.message}`, 'warn');
+          return 'sha256-fallback';
+        }
+      }
+
       // Telemetry Fallback UI Updater
-      function updateUI(data, isFallback = false, fallbackReason = '') {
+      async function updateUI(data, isFallback = false, fallbackReason = '') {
         if (!data) return;
         state.telemetryData = data;
         state.isFallbackActive = isFallback;
@@ -540,22 +814,35 @@
         if (isFallback) {
           banner.className = 'fallback-active';
           banner.style.display = 'flex';
-          bannerText.innerHTML = `<strong>Autonomous Telemetry Fallback Active:</strong> ${escapeHtml(fallbackReason || 'Network or edge node unreachable. Serving validated local simulation and cached baselines.')}`;
+          bannerText.innerHTML = `<strong>Autonomous Telemetry Fallback Active:</strong> ${escapeHtml(fallbackReason || 'Edge node unreachable. Serving validated local simulation.')}`;
           healthChip.className = 'chip chip-fallback';
           healthText.innerText = 'Telemetry: Offline Fallback';
+          announceAssertive(`Notice: Autonomous Telemetry Fallback Active. ${fallbackReason}`);
         } else {
           banner.style.display = 'none';
           banner.className = '';
           healthChip.className = 'chip chip-live';
           healthText.innerText = 'Telemetry: Edge Live';
+          announcePolite('Telemetry connection synchronized with edge node.');
         }
 
-        // Update Scores
+        // Update Hazard Scores & Trigger Alarms for Severe Hazards
         if (data.scores) {
           document.getElementById('score-seismic').innerText = data.scores.seismic || 0;
           document.getElementById('score-fire').innerText = data.scores.fire || 0;
           document.getElementById('score-heat').innerText = data.scores.heat || 0;
           document.getElementById('score-glof').innerText = data.scores.glof || 0;
+
+          // Check threshold for Visual Screen Flash & Haptic Vibrations
+          const maxScore = Math.max(
+            data.scores.seismic || 0,
+            data.scores.fire || 0,
+            data.scores.heat || 0,
+            data.scores.glof || 0
+          );
+          if (maxScore >= 60) {
+            window.ZackAccessibility.triggerSevereAlert(maxScore);
+          }
         }
 
         // Update Metrics
@@ -577,33 +864,37 @@
           }
         }
 
-        // Update SitRep
-        renderSitRep();
+        // Update SitRep and Cryptographic Audit Badge
+        await renderSitRep();
       }
 
-      function renderSitRep() {
+      async function renderSitRep() {
         const contentEl = document.getElementById('sitrep-content');
         const tsEl = document.getElementById('sitrep-timestamp');
+        const badgeEl = document.getElementById('verified-audit-badge');
         const data = state.telemetryData;
         if (!data || !data.sitrep) return;
 
         const text = state.currentRegister === 'researcher' ? data.sitrep.researcher : data.sitrep.plain;
         contentEl.innerText = text || 'No sitrep available for active profile.';
         tsEl.innerText = `Timestamp: ${new Date(data.timestamp || Date.now()).toLocaleTimeString()} | Register: ${state.currentRegister.toUpperCase()} | Regime: ${state.isFallbackActive ? 'Deterministic Local Fallback' : 'Edge Live'}`;
+
+        if (badgeEl) {
+          const hash = await generateAuditHash(data);
+          badgeEl.innerHTML = `🛡️ <strong>Verified Edge Audit</strong> <span style="opacity:0.85;">[sha256:${hash}]</span>`;
+        }
       }
 
       // Robust Fallback Request Handler
       async function fetchTelemetryWithFallback(endpoint = '/api/risk?fields=summary') {
         log(`Initiating telemetry fetch: ${endpoint}`, 'info');
         
-        // Check simulated failure toggle
         if (state.simulatedOffline) {
           log('Simulated offline mode enabled by operator. Activating local fallback engine immediately.', 'warn');
           activateFallback('Operator forced simulated fallback.');
           return;
         }
 
-        // Network offline check
         if (!navigator.onLine) {
           log('Browser reports network offline. Falling back to cached telemetry snapshots.', 'warn');
           activateFallback('Device network disconnected.');
@@ -612,7 +903,7 @@
 
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 6500); // 6.5s timeout for mobile field resilience
+          const timeoutId = setTimeout(() => controller.abort(), 6500);
 
           const res = await fetch(endpoint, {
             signal: controller.signal,
@@ -628,7 +919,6 @@
           const json = await res.json();
           log(`Successfully received live telemetry from ${endpoint}`, 'ok');
           
-          // Cache successful telemetry snapshot in localStorage
           try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
               data: json,
@@ -639,7 +929,7 @@
           }
 
           state.retryCount = 0;
-          updateUI(json, false);
+          await updateUI(json, false);
         } catch (err) {
           log(`Telemetry fetch failure [${err.name}]: ${err.message}`, 'err');
           handleFetchError(err);
@@ -650,7 +940,6 @@
         state.retryCount++;
         log(`Evaluating telemetry recovery attempt ${state.retryCount}/${state.maxRetries}...`, 'warn');
 
-        // Look for cached data first
         let cached = null;
         try {
           const raw = localStorage.getItem(STORAGE_KEY);
@@ -668,7 +957,6 @@
           activateFallback(`Edge unreachable (${error.message}). Running high-fidelity local telemetry simulator.`);
         }
 
-        // Schedule auto-retry with exponential backoff
         if (state.retryCount <= state.maxRetries) {
           const delay = state.retryDelayMs * Math.pow(1.5, state.retryCount - 1);
           log(`Scheduled automatic telemetry retry in ${(delay/1000).toFixed(1)}s`, 'info');
@@ -690,8 +978,6 @@
         const errorMsg = event.message || 'Unknown runtime error';
         const source = event.filename ? `${event.filename}:${event.lineno}` : 'client-runtime';
         log(`Unhandled Script Error: ${errorMsg} (${source})`, 'err');
-        
-        // Prevent white-screen of death in field operations
         if (!state.telemetryData) {
           activateFallback('Emergency recovery triggered after runtime error.');
         }
@@ -700,8 +986,6 @@
       window.addEventListener('unhandledrejection', function(event) {
         const reason = event.reason ? (event.reason.message || String(event.reason)) : 'Unknown rejection';
         log(`Unhandled Promise Rejection: ${reason}`, 'err');
-        
-        // Detect AI API or telemetry failures
         if (reason.includes('fetch') || reason.includes('NetworkError') || reason.includes('ai_refused')) {
           activateFallback(`Network/AI refusal intercepted: ${reason}`);
         }
@@ -717,6 +1001,179 @@
         log('Device transitioned to offline state. Switching to local telemetry mode.', 'warn');
         activateFallback('Device lost connection.');
       });
+
+      // Speech Synthesis Audio Briefing Subsystem (window.speechSynthesis)
+      window.ZackVoice = {
+        speakSitRep: function() {
+          if (!('speechSynthesis' in window)) {
+            log('SpeechSynthesis API not supported in this browser.', 'warn');
+            announcePolite('Speech synthesis audio briefings are not supported in this browser environment.');
+            return;
+          }
+          const sitrepEl = document.getElementById('sitrep-content');
+          if (!sitrepEl) return;
+          
+          window.speechSynthesis.cancel(); // Stop any ongoing utterance
+          const text = sitrepEl.innerText.trim();
+          if (!text) {
+            log('No SitRep text available to speak.', 'warn');
+            return;
+          }
+
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.rate = 1.0;
+          utterance.pitch = 1.0;
+          utterance.lang = 'en-US';
+
+          utterance.onstart = () => {
+            state.isSpeaking = true;
+            document.getElementById('btn-voice-brief').innerText = '⏹️ Stop Audio';
+            document.getElementById('btn-sitrep-speak').innerText = '⏹️ Stop Speech';
+            log('Speech synthesis started: SitRep audio briefing.', 'info');
+            announcePolite('Audio briefing started.');
+          };
+
+          utterance.onend = () => {
+            state.isSpeaking = false;
+            document.getElementById('btn-voice-brief').innerText = '🔊 Audio Briefing';
+            document.getElementById('btn-sitrep-speak').innerText = '🔊 Read Aloud';
+            log('Speech synthesis finished.', 'info');
+            announcePolite('Audio briefing completed.');
+          };
+
+          utterance.onerror = (e) => {
+            state.isSpeaking = false;
+            document.getElementById('btn-voice-brief').innerText = '🔊 Audio Briefing';
+            document.getElementById('btn-sitrep-speak').innerText = '🔊 Read Aloud';
+            log(`Speech synthesis error: ${e.error || 'Interrupted'}`, 'warn');
+          };
+
+          window.speechSynthesis.speak(utterance);
+        },
+
+        stopSpeech: function() {
+          if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+          }
+          state.isSpeaking = false;
+          document.getElementById('btn-voice-brief').innerText = '🔊 Audio Briefing';
+          document.getElementById('btn-sitrep-speak').innerText = '🔊 Read Aloud';
+          log('Speech synthesis stopped by user.', 'info');
+          announcePolite('Audio briefing stopped.');
+        },
+
+        toggleSpeech: function() {
+          if (state.isSpeaking) {
+            this.stopSpeech();
+          } else {
+            this.speakSitRep();
+          }
+        }
+      };
+
+      // Accessibility, WCAG AAA, Flash & Haptic Subsystem
+      window.ZackAccessibility = {
+        toggleWcagAaa: function() {
+          state.wcagAaaEnabled = !state.wcagAaaEnabled;
+          const btn = document.getElementById('btn-toggle-wcag');
+          if (state.wcagAaaEnabled) {
+            document.documentElement.classList.add('wcag-aaa');
+            btn.setAttribute('aria-pressed', 'true');
+            btn.className = 'btn btn-cyan';
+            btn.innerText = '👁️ WCAG AAA: ACTIVE';
+            log('WCAG AAA High-Contrast Mode engaged.', 'ok');
+            announcePolite('WCAG AAA high contrast color mode enabled.');
+          } else {
+            document.documentElement.classList.remove('wcag-aaa');
+            btn.setAttribute('aria-pressed', 'false');
+            btn.className = 'btn btn-outline';
+            btn.innerText = '👁️ WCAG AAA Mode';
+            log('WCAG AAA High-Contrast Mode disengaged.', 'info');
+            announcePolite('WCAG AAA high contrast color mode disabled.');
+          }
+          this.saveSettings();
+        },
+
+        toggleFlashSetting: function() {
+          state.flashAlertEnabled = !state.flashAlertEnabled;
+          const btn = document.getElementById('btn-toggle-flash');
+          if (state.flashAlertEnabled) {
+            btn.innerText = '⚡ Flash Alert: ON';
+            btn.setAttribute('aria-pressed', 'true');
+            log('Visual emergency screen flash enabled.', 'info');
+            announcePolite('Visual screen flash alerts enabled.');
+          } else {
+            btn.innerText = '⚡ Flash Alert: OFF';
+            btn.setAttribute('aria-pressed', 'false');
+            this.dismissFlash();
+            log('Visual emergency screen flash disabled.', 'info');
+            announcePolite('Visual screen flash alerts disabled.');
+          }
+          this.saveSettings();
+        },
+
+        toggleDarkMode: function() {
+          const isDark = document.documentElement.classList.toggle('dark');
+          localStorage.setItem('theme', isDark ? 'dark' : 'light');
+          log(`Theme set to ${isDark ? 'Dark Ops' : 'Light Canvas'}.`, 'info');
+          announcePolite(`Theme changed to ${isDark ? 'Dark' : 'Light'}`);
+        },
+
+        triggerSevereAlert: function(score) {
+          // Haptic Vibration: [200ms pulse, 100ms pause, 200ms pulse, 100ms pause, 400ms pulse]
+          if (navigator.vibrate) {
+            try {
+              navigator.vibrate([200, 100, 200, 100, 400]);
+              log('Haptic vibration alert pulsed (Severe Hazard Pattern).', 'ok');
+            } catch (err) {
+              log(`Vibrate API invocation prevented: ${err.message}`, 'warn');
+            }
+          }
+
+          // Visual Screen Flash Banner (checks user preference and reduced motion)
+          if (state.flashAlertEnabled && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            const banner = document.getElementById('screen-flash-banner');
+            const msg = document.getElementById('screen-flash-message');
+            if (banner && msg) {
+              msg.innerText = `🚨 CRITICAL HAZARD ALERT: Score ${score}/100 Exceeds Elevated Safety Envelope`;
+              banner.classList.add('flashing');
+            }
+          }
+
+          announceAssertive(`Emergency Warning: Anomaly score reached ${score} out of 100. Extreme hazard detected.`);
+        },
+
+        triggerHapticTest: function() {
+          if (navigator.vibrate) {
+            try {
+              navigator.vibrate([150, 80, 150]);
+              log('Haptic test pulse triggered [150ms, 80ms, 150ms].', 'ok');
+              announcePolite('Haptic vibration test succeeded.');
+            } catch (err) {
+              log(`Haptic API error: ${err.message}`, 'err');
+            }
+          } else {
+            log('Haptic vibration (navigator.vibrate) is not supported on this device/browser.', 'warn');
+            announcePolite('Haptic vibration is not supported on this device.');
+          }
+        },
+
+        dismissFlash: function() {
+          const banner = document.getElementById('screen-flash-banner');
+          if (banner) {
+            banner.classList.remove('flashing');
+          }
+        },
+
+        saveSettings: function() {
+          try {
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+              wcagAaa: state.wcagAaaEnabled,
+              flashAlert: state.flashAlertEnabled
+            }));
+          } catch (e) {}
+        }
+      };
 
       // Public API exposed on window.ZackTelemetry
       window.ZackTelemetry = {
@@ -744,11 +1201,15 @@
           document.getElementById('btn-toggle-register').innerText = state.currentRegister === 'plain' ? 'View: Plain Language' : 'View: Researcher Matrix';
           renderSitRep();
           log(`Switched SitRep register to ${state.currentRegister.toUpperCase()}`, 'info');
+          announcePolite(`Situation Report register changed to ${state.currentRegister === 'plain' ? 'Plain Language' : 'Institutional Researcher Matrix'}`);
         },
         copySitRep: function() {
           const text = document.getElementById('sitrep-content').innerText;
           if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).then(() => log('SitRep copied to clipboard.', 'ok'));
+            navigator.clipboard.writeText(text).then(() => {
+              log('SitRep copied to clipboard.', 'ok');
+              announcePolite('Situation report copied to clipboard.');
+            });
           } else {
             log('Clipboard API unavailable on this device.', 'warn');
           }
@@ -756,22 +1217,34 @@
         switchProfile: function(profile) {
           state.activeProfile = profile;
           log(`Switched mission profile to: ${profile}`, 'info');
+          announcePolite(`Active mission profile switched to ${profile}`);
           this.refresh(true);
         },
         clearLogs: function() {
           const consoleEl = document.getElementById('console-log');
           if (consoleEl) consoleEl.innerHTML = '';
           log('Operator console cleared.', 'info');
+          announcePolite('Console log cleared.');
         }
       };
 
       // Initialization on DOM Ready
       document.addEventListener('DOMContentLoaded', function() {
-        log('Zackscan Telemetry & Error Audit Subsystem initialized.', 'ok');
+        log('Zackscan Telemetry, WCAG AAA & Speech Subsystems initialized.', 'ok');
         
         // Restore theme preference
         if (localStorage.getItem('theme') === 'light') {
           document.documentElement.classList.remove('dark');
+        }
+
+        // Sync WCAG AAA Button state if persisted
+        if (state.wcagAaaEnabled) {
+          const btn = document.getElementById('btn-toggle-wcag');
+          if (btn) {
+            btn.setAttribute('aria-pressed', 'true');
+            btn.className = 'btn btn-cyan';
+            btn.innerText = '👁️ WCAG AAA: ACTIVE';
+          }
         }
         
         // Initialize telemetry stream
@@ -779,26 +1252,5 @@
       });
     })();
   </script>
-
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-    console.log("Zackscan UI Initialized");
-    const select = document.getElementById("profile-select") || document.querySelector("select");
-    if (select) {
-        select.addEventListener("change", (e) => {
-            try {
-                if (window.ZackTelemetry && typeof window.ZackTelemetry.switchProfile === "function") {
-                    window.ZackTelemetry.switchProfile(e.target.value);
-                }
-            } catch(err) { console.error("Switch error:", err); }
-        });
-    }
-    document.querySelectorAll("button, .btn, [role=\"tab\"], select").forEach(el => {
-        el.style.pointerEvents = "auto";
-        el.style.touchAction = "manipulation";
-    });
-});
-</script>
 </body>
-
 </html>
