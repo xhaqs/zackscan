@@ -779,5 +779,26 @@
       });
     })();
   </script>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("Zackscan UI Initialized");
+    const select = document.getElementById("profile-select") || document.querySelector("select");
+    if (select) {
+        select.addEventListener("change", (e) => {
+            try {
+                if (window.ZackTelemetry && typeof window.ZackTelemetry.switchProfile === "function") {
+                    window.ZackTelemetry.switchProfile(e.target.value);
+                }
+            } catch(err) { console.error("Switch error:", err); }
+        });
+    }
+    document.querySelectorAll("button, .btn, [role=\"tab\"], select").forEach(el => {
+        el.style.pointerEvents = "auto";
+        el.style.touchAction = "manipulation";
+    });
+});
+</script>
 </body>
+
 </html>
