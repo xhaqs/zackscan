@@ -432,6 +432,20 @@
       }
     }
   </style>
+
+<style>
+/* Fix pointer trapping on alert banners and ensure smooth mobile touch */
+#screen-flash-banner {
+    pointer-events: none !important;
+}
+#screen-flash-banner button, #screen-flash-banner a, #screen-flash-banner input {
+    pointer-events: auto !important;
+}
+button, select, input, .btn {
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+}
+</style>
 </head>
 <body>
   <!-- Skip to Main Content Link for Keyboard and Screen Readers -->
