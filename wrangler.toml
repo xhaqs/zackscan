@@ -1,39 +1,18 @@
 name = "zackscan"
 main = "src/worker.js"
-compatibility_date = "2026-09-01"
+compatibility_date = "2024-03-20"
 
 [assets]
 directory = "./public"
-binding = "ASSETS"
-run_worker_first = ["/api/*"]
 
-[vars]
-# Free platform-tier AI calls per visitor IP per day.
-PLATFORM_DAILY_LIMIT = "10"
-# NASA FIRMS satellite source for fire detections.
-FIRMS_SOURCE = "VIIRS_NOAA20_NRT"
-
-# Keep the risk matrix warm: each run refreshes the 3 stalest regions.
-# Daily brief: once a day at 04:00 UTC (07:00 East Africa Time).
-[triggers]
-crons = ["*/10 * * * *", "0 4 * * *"]
-
-# KV namespaces. CI (scripts/ensure-kv.mjs) finds or creates
-# "zackscan-RISK_CACHE" / "zackscan-RATE_LIMIT" and fills in the ids before
-# each deploy. Locally, wrangler dev simulates them with these placeholders.
 [[kv_namespaces]]
 binding = "RISK_CACHE"
-id = "__RISK_CACHE_ID__"
+id = "543354d4b6994d29994dd97a6c4f781e"
 
 [[kv_namespaces]]
 binding = "RATE_LIMIT"
-id = "__RATE_LIMIT_ID__"
+id = "db5d1a70c8464ed3994b009ecfcb34ad"
 
 [[kv_namespaces]]
 binding = "DAILY_BRIEF"
-id = "__DAILY_BRIEF_ID__"
-
-# Secrets (set by CI from GitHub repo secrets, never committed). All optional:
-#   PLATFORM_GEMINI_KEY  shared AI tier; without it only BYOK works
-#   FIRMS_MAP_KEY        NASA FIRMS fire detections (free key)
-#   OPENAQ_API_KEY       OpenAQ PM2.5 (free key)
+id = "a77a1b9aa2da498a963de49420cc3095"
