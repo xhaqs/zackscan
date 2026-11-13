@@ -77,6 +77,7 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
     }
 
     /* Accessible Skip Link */
@@ -175,6 +176,8 @@
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
+      min-height: 32px;
+      min-width: 32px;
     }
     .btn-cyan { background: #06b6d4; color: #082f49; }
     .btn-cyan:hover { background: #22d3ee; }
@@ -208,8 +211,8 @@
       border-color: rgba(244, 63, 94, 0.3);
     }
 
-    /* Layout */
-    .app-container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+    /* Layout & Responsiveness Fixes */
+    .app-container { max-width: 1200px; margin: 0 auto; padding: 1rem; width: 100%; }
     .header-bar {
       display: flex;
       flex-wrap: wrap;
@@ -220,9 +223,9 @@
       border-bottom: var(--border-contrast);
       margin-bottom: 1.25rem;
     }
-    .logo-area { display: flex; align-items: center; gap: 0.75rem; }
-    .logo-badge { background: #06b6d4; color: #042f2e; font-weight: 900; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem; letter-spacing: 0.05em; }
-    .brand-title { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em; color: #f8fafc; }
+    .logo-area { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+    .logo-badge { background: #06b6d4; color: #042f2e; font-weight: 900; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem; letter-spacing: 0.05em; flex-shrink: 0; }
+    .brand-title { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em; color: #f8fafc; word-break: break-word; }
     
     /* Mission Profile Bar */
     .profile-bar {
@@ -248,6 +251,7 @@
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
+      word-break: break-word;
     }
     .chip-live { border-color: rgba(16, 185, 129, 0.4); color: #34d399; }
     .chip-fallback { border-color: rgba(245, 158, 11, 0.4); color: #fbbf24; }
@@ -258,12 +262,13 @@
       border-radius: 50%;
       background: currentColor;
       box-shadow: 0 0 6px currentColor;
+      flex-shrink: 0;
     }
 
-    /* Grid */
+    /* Responsive Grid */
     .anomaly-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 1rem;
       margin-bottom: 2rem;
     }
@@ -277,6 +282,7 @@
       gap: 0.75rem;
       position: relative;
       overflow: hidden;
+      width: 100%;
     }
     .anomaly-card::before {
       content: '';
@@ -290,12 +296,13 @@
     .anomaly-card.hazard-heat::before { background: #ef4444; }
     .anomaly-card.hazard-glof::before { background: #a855f7; }
     
-    .card-head { display: flex; justify-content: space-between; align-items: flex-start; }
+    .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
     .card-title { font-size: 0.95rem; font-weight: 600; color: #f1f5f9; }
     .card-score {
       font-size: 1.5rem;
       font-weight: 800;
       line-height: 1;
+      flex-shrink: 0;
     }
     .score-low { color: #34d399; }
     .score-guard { color: #38bdf8; }
@@ -306,12 +313,14 @@
     .metric-row {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       font-size: 0.8rem;
       color: var(--text-muted);
       border-bottom: 1px solid rgba(255,255,255,0.05);
       padding-bottom: 0.25rem;
+      gap: 0.5rem;
     }
-    .metric-value { font-weight: 600; color: #e2e8f0; }
+    .metric-value { font-weight: 600; color: #e2e8f0; text-align: right; }
 
     /* SitRep Section */
     .sitrep-panel {
@@ -326,7 +335,7 @@
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
-      gap: 0.5rem;
+      gap: 0.75rem;
       margin-bottom: 1rem;
       padding-bottom: 0.5rem;
       border-bottom: var(--border-contrast);
@@ -335,7 +344,8 @@
       font-size: 0.875rem;
       color: #cbd5e1;
       line-height: 1.6;
-      white-space: pre-line;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
 
     /* Audit & Diagnostic Console */
@@ -346,6 +356,7 @@
       padding: 1rem;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 0.75rem;
+      overflow-x: auto;
     }
     .console-header {
       display: flex;
@@ -355,6 +366,8 @@
       margin-bottom: 0.5rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      flex-wrap: wrap;
+      gap: 0.5rem;
     }
     .log-stream {
       max-height: 180px;
@@ -367,11 +380,57 @@
       color: #94a3b8;
       display: flex;
       gap: 0.5rem;
+      word-break: break-all;
     }
     .log-entry.log-warn { color: #f59e0b; }
     .log-entry.log-err { color: #f43f5e; }
     .log-entry.log-info { color: #38bdf8; }
     .log-entry.log-ok { color: #10b981; }
+
+    /* Mobile Breakpoints & Touch Target Improvements */
+    @media (max-width: 768px) {
+      .header-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .header-bar > div:last-child {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+      }
+      .profile-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .profile-bar > div:last-child {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .anomaly-grid {
+        grid-template-columns: 1fr;
+      }
+      .sitrep-header > div:last-child {
+        display: grid;
+        grid-template-columns: 1fr;
+        width: 100%;
+        gap: 0.5rem;
+      }
+      .sitrep-header .btn {
+        width: 100%;
+        justify-content: center;
+      }
+      #judge-pitch-banner {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+      }
+      #judge-pitch-banner > div {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.35rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -464,9 +523,9 @@
         <span class="chip" id="region-chip" role="listitem">Region: UAE &amp; Arabian Gulf (ID: dxb-01)</span>
         <span class="chip" id="source-chip" role="listitem">Feeds: USGS · NASA FIRMS · Open-Meteo</span>
       </div>
-      <div style="display: flex; gap: 0.5rem; align-items: center;">
+      <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
         <label for="profile-select" style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Mission Profile:</label>
-        <select id="profile-select" class="btn btn-outline" style="background: #0f172a;" onchange="window.ZackTelemetry.switchProfile(this.value)" aria-label="Select active mission profile">
+        <select id="profile-select" class="btn btn-outline" style="background: #0f172a; flex: 1; min-width: 140px;" onchange="window.ZackTelemetry.switchProfile(this.value)" aria-label="Select active mission profile">
           <option value="general">General Awareness</option>
           <option value="wildfire">Wildfire Operations</option>
           <option value="heat">Extreme Heat Monitoring</option>
